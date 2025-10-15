@@ -12,7 +12,7 @@ const CATALOGO = {
             img: 'https://thumbs.dreamstime.com/b/italian-gelato-chocolate-delicious-selective-focus-image-176533633.jpg',
             permiteToppings: true,
             tamanos: [
-                { id: 'S', nombre: 'Chico', precio: 6000 },
+                { id: 'S', nombre: 'Pequeño', precio: 6000 },
                 { id: 'M', nombre: 'Mediano', precio: 8000 },
                 { id: 'L', nombre: 'Grande', precio: 10000 }
             ]
@@ -28,7 +28,7 @@ const CATALOGO = {
             img: 'https://ichkoche.twic.pics/image/8/70178.jpg?twic=v1/quality=80/focus=50px50p/cover=1240x868',
             permiteToppings: false,
             tamanos: [
-                { id: 'S', nombre: 'Chica', precio: 9000 },
+                { id: 'S', nombre: 'Pequeña', precio: 9000 },
                 { id: 'M', nombre: 'Mediana', precio: 11000 },
                 { id: 'L', nombre: 'Grande', precio: 13000 }
             ]
@@ -49,6 +49,7 @@ const CATALOGO = {
         { id: 'nueces', nombre: 'Nueces', precio: 2000 },
         { id: 'salsa', nombre: 'Salsa de caramelo', precio: 1500 },
         { id: 'frutas', nombre: 'Fruta extra', precio: 2000 },
+        { id: 'agua', nombre: 'Agua Cristal', precio: 2500 }
     ]
 };
 
