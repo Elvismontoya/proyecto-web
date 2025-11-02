@@ -1,0 +1,4 @@
+SUPABASE_URL=https://utblohwapbypsucpevmr.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=clave_del_servicio
+JWT_SECRET=clave_propia
+PORT=4000
