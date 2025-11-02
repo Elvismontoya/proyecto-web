@@ -6,7 +6,9 @@ import { fileURLToPath } from 'url';
 
 import authRouter from './routes/auth.js';
 import productosRouter from './routes/productos.js';
-import facturasRouter from './routes/facturas.js'; 
+import facturasRouter from './routes/facturas.js';
+import auditoriaRouter from './routes/auditoria.js'; // <- Nuevo
+import empleadosRouter from './routes/empleados.js'; // <- Nuevo
 
 dotenv.config();
 
@@ -23,7 +25,9 @@ app.use(express.json());
 // Rutas de API
 app.use('/api/auth', authRouter);
 app.use('/api/productos', productosRouter);
-app.use('/api/facturas', facturasRouter); // <- montamos la ruta de las ventas/facturas
+app.use('/api/facturas', facturasRouter);
+app.use('/api/auditoria', auditoriaRouter); // <- Nuevo
+app.use('/api/empleados', empleadosRouter); // <- Nuevo
 
 // Healthcheck
 app.get('/api/health', (req, res) => {
@@ -33,7 +37,7 @@ app.get('/api/health', (req, res) => {
 // Servir frontend estático
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Páginas HTML (están dentro de /frontend/pages/)
+// Páginas HTML
 app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/pages/login.html'));
 });
@@ -48,6 +52,15 @@ app.get('/pedido.html', (req, res) => {
 
 app.get('/index.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/pages/index.html'));
+});
+
+// Nuevas páginas
+app.get('/admin-auditoria.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/pages/admin-auditoria.html'));
+});
+
+app.get('/admin-facturas.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/pages/admin-facturas.html'));
 });
 
 // Ruta raíz: redirige al login
@@ -66,5 +79,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
   console.log(`🔐 Login:       http://localhost:${PORT}/login.html`);
   console.log(`🛠️ Admin:       http://localhost:${PORT}/admin.html`);
+  console.log(`📊 Auditoría:   http://localhost:${PORT}/admin-auditoria.html`);
+  console.log(`🧾 Facturas:    http://localhost:${PORT}/admin-facturas.html`);
   console.log(`🧾 Pedido/Caja: http://localhost:${PORT}/pedido.html`);
 });

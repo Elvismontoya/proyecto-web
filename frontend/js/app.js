@@ -51,9 +51,8 @@ async function cargarProductos() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      grid.innerHTML = `<div class="text-center text-danger py-3">${
-        data.message || 'Error cargando productos.'
-      }</div>`;
+      grid.innerHTML = `<div class="text-center text-danger py-3">${data.message || 'Error cargando productos.'
+        }</div>`;
       return;
     }
 
@@ -174,9 +173,8 @@ function renderPedido() {
         <tr>
           <td>${i.nombre}</td>
           <td class="text-center">
-            <input type="number" class="form-control form-control-sm text-center" value="${
-              i.cantidad
-            }" min="1" style="width:60px" data-cant="${i.id}">
+            <input type="number" class="form-control form-control-sm text-center" value="${i.cantidad
+          }" min="1" style="width:60px" data-cant="${i.id}">
           </td>
           <td class="text-end">${money(i.precio * i.cantidad)}</td>
           <td class="text-end">
@@ -260,6 +258,117 @@ async function cobrar() {
   }
 }
 
+// En app.js - función cargarMetodosPago
+function cargarMetodosPago() {
+  // Simulación de datos - reemplaza con tu llamada a la API real
+  const metodosPago = [
+    { id_metodo: 1, nombre_metodo: "Efectivo", description: "Pago en efectivo al momento de la entrega", activo: true },
+    { id_metodo: 2, nombre_metodo: "Transferencia", description: "Transferencia bancaria", activo: true }
+  ];
+
+  const selectMetodoPago = document.getElementById('metodo_pago');
+
+  // Limpiar opciones existentes
+  while (selectMetodoPago.options.length > 0) {
+    selectMetodoPago.remove(0);
+  }
+
+  // Opción por defecto
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = 'Seleccione un método de pago';
+  selectMetodoPago.appendChild(defaultOption);
+
+  // Agregar métodos de pago
+  metodosPago.forEach(metodo => {
+    if (metodo.activo) {
+      const option = document.createElement('option');
+      option.value = metodo.nombre_metodo; // Usar el nombre exacto
+      option.textContent = metodo.nombre_metodo;
+      option.setAttribute('data-description', metodo.description);
+      selectMetodoPago.appendChild(option);
+    }
+  });
+
+  // Agregar evento para mostrar descripción
+  selectMetodoPago.addEventListener('change', function () {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption.value) {
+      const descripcion = selectedOption.getAttribute('data-description');
+      mostrarDescripcionMetodoPago(descripcion);
+    } else {
+      ocultarDescripcionMetodoPago();
+    }
+  });
+}
+
+async function cobrar() {
+  if (!pedido.length) {
+    alert('No hay productos en el pedido');
+    return;
+  }
+
+  const cliente = $('#inpCliente').value;
+  const pago = Number($('#inpPago').value);
+  const metodoPagoSelect = document.getElementById('metodo_pago');
+  const metodoPagoSeleccionado = metodoPagoSelect.value;
+  
+  const { subtotal, total } = calcularTotales();
+
+  // Validar método de pago
+  if (!metodoPagoSeleccionado) {
+    alert('Por favor, seleccione un método de pago');
+    metodoPagoSelect.focus();
+    return;
+  }
+
+  if (pago < total) {
+    alert('El pago es insuficiente.');
+    return;
+  }
+
+  const payload = {
+    cliente,
+    subtotal,
+    descuento,
+    total,
+    metodo_pago: metodoPagoSeleccionado,
+    productos: pedido.map(p => ({
+      id: p.id,
+      cantidad: p.cantidad,
+      precio: p.precio
+    }))
+  };
+
+  console.log("Enviando payload:", payload); // Para debugging
+
+  try {
+    const res = await fetch('/api/facturas', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getToken()}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.message);
+
+    alert('✅ Factura registrada correctamente.');
+    vaciarPedido();
+    $('#inpPago').value = 0;
+    $('#inpCliente').value = '';
+    $('#inpDesc').value = 0;
+    descuento = 0;
+    metodoPagoSelect.value = '';
+    renderPedido();
+  } catch (err) {
+    console.error(err);
+    alert('❌ Error al registrar factura: ' + err.message);
+  }
+}
 // ==============================
 //  Eventos del DOM
 // ==============================
@@ -303,4 +412,5 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarProductos();
   bindEventos();
   renderPedido();
+  cargarMetodosPago();
 });

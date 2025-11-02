@@ -143,8 +143,8 @@
                 </div>
                 <div class="col-5">
                   <label class="form-label mb-1">Cambio</label>
-                  <div class="form-control form-control-sm bg-light d-flex align-items-center"
-                    style="height:36px;" id="lblCambio">
+                  <div class="form-control form-control-sm bg-light d-flex align-items-center" style="height:36px;"
+                    id="lblCambio">
                     $0
                   </div>
                 </div>
@@ -165,11 +165,20 @@
               </div>
             </div>
 
-            <p class="small-muted mt-3 mb-0">
-              * Pago siempre en efectivo. Total = Subtotal − Descuento.
-            </p>
+
+            <!-- Agrega esto en la sección donde quieras mostrar el método de pago -->
+            <div class="form-group">
+              <label for="metodo_pago">Método de Pago:</label>
+              <select id="metodo_pago" class="form-control">
+                <option value="">Seleccione un método de pago</option>
+                <!-- Las opciones se cargarán dinámicamente desde JavaScript -->
+              </select>
+            </div>
+
           </div>
         </div>
+
+
       </div>
     </div>
   </main>
@@ -191,4 +200,5 @@
 
   <script src="../js/app.js"></script>
 </body>
+
 </html>
