@@ -188,14 +188,18 @@ router.post("/", verifyToken, async (req, res) => {
 
 // GET /api/facturas/ingresos-por-dia
 // Obtiene ingresos agrupados por día
+// routes/facturas.js - AGREGAR ESTE CÓDIGO AL FINAL DEL ARCHIVO
+
+// GET /api/facturas/ingresos-por-dia - CORREGIDO
 router.get("/ingresos-por-dia", verifyToken, async (req, res) => {
   const { fecha_desde, fecha_hasta } = req.query;
 
   try {
+    // Consulta base para obtener facturas
     let query = supabase
       .from("facturas")
       .select("fecha_hora, total_neto")
-      .order("fecha_hora", { ascending: false });
+      .order("fecha_hora", { ascending: true });
 
     // Aplicar filtros de fecha si existen
     if (fecha_desde) {
@@ -208,14 +212,17 @@ router.get("/ingresos-por-dia", verifyToken, async (req, res) => {
     const { data: facturas, error } = await query;
 
     if (error) {
-      console.error("Error consultando facturas:", error);
+      console.error("Error consultando facturas para ingresos:", error);
       return res.status(500).json({ message: "Error al obtener ingresos" });
     }
 
-    // Agrupar por día
+    // Agrupar por día de manera más robusta
     const ingresosPorDia = {};
+    
     facturas.forEach(factura => {
-      const fecha = factura.fecha_hora.split('T')[0]; // YYYY-MM-DD
+      const fechaObj = new Date(factura.fecha_hora);
+      const fecha = fechaObj.toISOString().split('T')[0]; // YYYY-MM-DD
+      
       if (!ingresosPorDia[fecha]) {
         ingresosPorDia[fecha] = {
           fecha: fecha,
@@ -223,18 +230,22 @@ router.get("/ingresos-por-dia", verifyToken, async (req, res) => {
           total_ventas: 0
         };
       }
-      ingresosPorDia[fecha].ingresos_totales += Number(factura.total_neto);
+      
+      ingresosPorDia[fecha].ingresos_totales += Number(factura.total_neto) || 0;
       ingresosPorDia[fecha].total_ventas += 1;
     });
 
-    // Calcular promedio y formatear
+    // Convertir a array y calcular promedios
     const resultado = Object.values(ingresosPorDia)
       .map(item => ({
-        ...item,
-        promedio_venta: item.ingresos_totales / item.total_ventas
+        fecha: item.fecha,
+        ingresos_totales: item.ingresos_totales,
+        total_ventas: item.total_ventas,
+        promedio_venta: item.total_ventas > 0 ? item.ingresos_totales / item.total_ventas : 0
       }))
-      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha)); // Más reciente primero
 
+    console.log(`📊 Ingresos por día: ${resultado.length} días encontrados`);
     res.json(resultado);
   } catch (err) {
     console.error("Error en /api/facturas/ingresos-por-dia:", err);

@@ -125,6 +125,7 @@ export default function AdminFacturas() {
             <Link className="btn btn-sm btn-outline-brand" to="/admin">Productos</Link>
             <Link className="btn btn-sm btn-outline-brand" to="/admin/auditoria">Auditoría</Link>
             <Link className="btn btn-sm btn-brand" to="/admin/facturas">Facturas</Link>
+            <Link className="btn btn-sm btn-outline-brand" to="/admin/inventario">Inventario</Link>
             <button onClick={logout} className="btn btn-sm btn-outline-secondary">Cerrar sesión</button>
           </div>
         </div>
