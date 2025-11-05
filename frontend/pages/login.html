@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acceso | GelatoPro</title>
+
+  <!-- Bootstrap -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    crossorigin="anonymous"
+  />
+
+  <!-- Tus estilos -->
+  <link rel="stylesheet" href="../css/estilo.css" />
+</head>
+
+<body>
+  <!-- NAV -->
+  <nav class="navbar navbar-expand-lg border-bottom sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-semibold" href="index.html">🍨 GelatoPro</a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="container my-5">
+    <section class="hero rounded-xl">
+      <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+          <div class="card card-soft">
+            <div class="card-body">
+
+              <!-- Tabs -->
+              <ul class="nav nav-tabs mb-3" id="authTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link active"
+                    id="login-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#login-pane"
+                    type="button"
+                    role="tab"
+                  >
+                    Iniciar sesión
+                  </button>
+                </li>
+
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    id="register-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#register-pane"
+                    type="button"
+                    role="tab"
+                  >
+                    Registrar administrador
+                  </button>
+                </li>
+              </ul>
+
+              <div class="tab-content" id="authTabsContent">
+
+                <!-- Pestaña LOGIN -->
+                <div
+                  class="tab-pane fade show active"
+                  id="login-pane"
+                  role="tabpanel"
+                  aria-labelledby="login-tab"
+                >
+                  <h4 class="mb-3 text-center">Iniciar sesión</h4>
+
+                  <form id="loginForm">
+                    <div class="mb-3">
+                      <label class="form-label">Usuario</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="inpUsuario"
+                        autocomplete="username"
+                        required
+                      />
+                    </div>
+
+                    <div class="mb-3">
+                      <label class="form-label">Contraseña</label>
+                      <input
+                        type="password"
+                        class="form-control"
+                        id="inpPassword"
+                        autocomplete="current-password"
+                        required
+                      />
+                    </div>
+
+                    <div class="d-grid">
+                      <button
+                        type="submit"
+                        class="btn btn-brand"
+                        id="btnLogin"
+                      >
+                        Entrar
+                      </button>
+                    </div>
+
+                    <p
+                      class="small text-muted mt-3 mb-0 text-center"
+                      id="loginMsg"
+                    ></p>
+                  </form>
+                </div>
+
+                <!-- Pestaña REGISTRO ADMIN -->
+                <div
+                  class="tab-pane fade"
+                  id="register-pane"
+                  role="tabpanel"
+                  aria-labelledby="register-tab"
+                >
+                  <h4 class="mb-3 text-center">Registrar administrador</h4>
+
+                  <div
+                    class="alert alert-warning p-2 small text-center"
+                    id="registerInfo"
+                  >
+                    Esta opción solo aparece si aún NO existe un administrador.
+                  </div>
+
+                  <form id="registerForm">
+                    <div class="mb-2">
+                      <label class="form-label">Nombres</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="regNombres"
+                        required
+                      />
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label">Apellidos</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="regApellidos"
+                        required
+                      />
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label">Usuario</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="regUsuario"
+                        autocomplete="username"
+                        required
+                      />
+                    </div>
+
+                    <div class="mb-3">
+                      <label class="form-label">Contraseña</label>
+                      <input
+                        type="password"
+                        class="form-control"
+                        id="regPassword"
+                        autocomplete="new-password"
+                        required
+                      />
+                    </div>
+
+                    <div class="d-grid">
+                      <button
+                        type="submit"
+                        class="btn btn-brand"
+                        id="btnRegister"
+                      >
+                        Crear administrador
+                      </button>
+                    </div>
+
+                    <p
+                      class="small text-muted mt-3 mb-0 text-center"
+                      id="registerMsg"
+                    ></p>
+                  </form>
+                </div>
+              </div>
+              <!-- /tab-content -->
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="py-4 border-top">
+    <div
+      class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2"
+    >
+      <a href="index.html">&copy; GelatoPro</a>
+      <p class="mb-0">Desarrollado por Elvis Montoya y Juan Hernandez</p>
+      <div class="d-flex gap-4">
+        <a href="https://www.instagram.com/">Instagram</a>
+        <a href="https://www.facebook.com/">Facebook</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bootstrap JS -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    crossorigin="anonymous"
+  ></script>
+
+  <!-- TU JS -->
+  <script src="../js/login.js"></script>
+</body>
+</html>
