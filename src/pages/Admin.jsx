@@ -86,8 +86,6 @@ export default function Admin() {
     }
   }
 
-  
-
   async function cargarCategorias() {
     try {
       const res = await fetch("/api/categorias", {
