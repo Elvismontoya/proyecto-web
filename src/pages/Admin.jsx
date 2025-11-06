@@ -31,7 +31,6 @@ export default function Admin() {
   const [msgTabla, setMsgTabla] = useState("Cargando productos...");
   const [activeTab, setActiveTab] = useState("productos");
 
-
   // =========================
   // Estados para formulario de productos
   // =========================
@@ -73,10 +72,13 @@ export default function Admin() {
         return;
       }
       const data = await res.json();
-      setProductos(Array.isArray(data) ? data : []);
+      
+      // Transformar los datos para que sean compatibles con el frontend
+      const productosTransformados = transformarProductos(data);
+      setProductos(Array.isArray(productosTransformados) ? productosTransformados : []);
       setMsgTabla(
-        Array.isArray(data) && data.length
-          ? `Total productos: ${data.length}`
+        Array.isArray(productosTransformados) && productosTransformados.length
+          ? `Total productos: ${productosTransformados.length}`
           : "Sin productos en catálogo."
       );
     } catch (e) {
@@ -84,6 +86,24 @@ export default function Admin() {
       setMsgTabla("Error cargando productos.");
       setProductos([]);
     }
+  }
+
+  // Función para transformar los productos del backend al formato del frontend
+  function transformarProductos(data) {
+    if (!Array.isArray(data)) return [];
+    
+    return data.flatMap(categoria => 
+      categoria.productos?.map(producto => ({
+        id: producto.id,
+        nombre: producto.nombre,
+        precio: producto.precio,
+        stock: producto.stock,
+        img: producto.img,
+        permiteToppings: producto.permiteToppings,
+        id_categoria: producto.id_categoria,
+        categoria: categoria.nombre
+      })) || []
+    );
   }
 
   async function cargarCategorias() {
@@ -304,7 +324,7 @@ export default function Admin() {
         return;
       }
       await cargarCategorias();
-      await cargarProductos(); // Recargar productos por si alguno estaba en esta categoría
+      await cargarProductos();
     } catch (e) {
       console.error(e);
       alert("Error al conectar con el servidor.");
@@ -452,6 +472,9 @@ export default function Admin() {
                         value={formProducto.img}
                         onChange={onChangeProducto}
                       />
+                      <div className="form-text">
+                        Usa una URL de imagen válida o déjalo vacío para imagen por defecto
+                      </div>
                     </div>
 
                     <div className="mb-3">
@@ -536,6 +559,10 @@ export default function Admin() {
                                         borderRadius: 8,
                                         border: "1px solid #ddd",
                                       }}
+                                      onError={(e) => {
+                                        // Si la imagen falla, mostrar placeholder
+                                        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik0yNCAzMkwyMCAyOEgxNkwxMiAzMkwxNiAzNkgyMEwyNCAzMloiIGZpbGw9IiNENkQ2RDYiLz4KPC9zdmc+';
+                                      }}
                                     />
                                   ) : (
                                     <div
@@ -547,8 +574,9 @@ export default function Admin() {
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        fontSize: 12,
+                                        fontSize: 10,
                                         color: "#888",
+                                        backgroundColor: '#f8f9fa'
                                       }}
                                     >
                                       sin img
@@ -565,8 +593,19 @@ export default function Admin() {
                                   {p.categoria || "Sin categoría"}
                                 </span>
                               </td>
-                              <td className="text-center">{money(p.precio)}</td>
-                              <td className="text-center">{p.stock}</td>
+                              <td className="text-center">
+                                <span className="fw-bold text-success">
+                                  {money(p.precio)}
+                                </span>
+                              </td>
+                              <td className="text-center">
+                                <span className={`badge ${
+                                  p.stock > 10 ? 'bg-success' : 
+                                  p.stock > 0 ? 'bg-warning text-dark' : 'bg-danger'
+                                }`}>
+                                  {p.stock}
+                                </span>
+                              </td>
                               <td className="text-center">
                                 {p.permiteToppings ? (
                                   <span className="badge text-bg-success">Sí</span>
@@ -707,8 +746,7 @@ export default function Admin() {
                               </td>
                               <td className="text-center">
                                 <span className="badge bg-primary">
-                                  {/* Aquí podrías contar productos por categoría */}
-                                  -
+                                  {productos.filter(p => p.id_categoria === cat.id_categoria).length}
                                 </span>
                               </td>
                               <td className="text-end">
