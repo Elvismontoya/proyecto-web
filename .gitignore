@@ -1,1 +1,29 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Builds / bundles
+dist/
+build/
+.out/
+.next/
+.vercel/
+coverage/
+*.log
+
+# Env y secretos
+.env
+.env.*
+!.env.example
 server/.env
+server/.env.*
+!server/.env.example
+
+# SO/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
