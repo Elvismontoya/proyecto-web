@@ -1,10 +1,10 @@
-# Node
+# Node (root y server)
 node_modules/
+server/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-server/node_modules
 
 # Builds / bundles
 dist/
@@ -15,6 +15,12 @@ build/
 coverage/
 *.log
 
+# Caches / herramientas
+.eslintcache
+.cache/
+.turbo/
+*.tgz
+
 # Env y secretos
 .env
 .env.*
@@ -22,9 +28,19 @@ coverage/
 server/.env
 server/.env.*
 !server/.env.example
+*.pem
+*.key
+.envrc
 
-# SO/IDE
+# SO / IDE
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# (Opcional) Bases locales (si usas SQLite en dev)
+server/prisma/*.db
+server/prisma/*.db-journal
+*.sqlite
+*.db
+*.db-journal

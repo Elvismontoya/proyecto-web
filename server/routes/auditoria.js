@@ -1,13 +1,13 @@
 import express from "express";
-import { supabase } from "../supabaseClient.js";
+import { supabaseAdmin } from "../db/supabase.js";
 import { verifyToken, requireAdmin } from "../authMiddleware.js";
 
 const router = express.Router();
 
-// GET /api/auditoria - Obtener todos los registros de auditoría
+// GET /api/auditoria
 router.get("/", verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("auditoria")
       .select(`
         *,
@@ -21,12 +21,13 @@ router.get("/", verifyToken, requireAdmin, async (req, res) => {
       return res.status(500).json({ message: "Error al obtener auditoría" });
     }
 
-    // Formatear los datos
     const auditoriaFormateada = data.map(item => ({
       id: item.id_auditoria,
       id_auditoria: item.id_auditoria,
       fecha_hora: item.fecha_hora,
-      empleado: item.empleados ? `${item.empleados.nombres} ${item.empleados.apellidos}` : 'Sistema',
+      empleado: item.empleados
+        ? `${item.empleados.nombres} ${item.empleados.apellidos}`
+        : "Sistema",
       accion: item.accion,
       tabla_afectada: item.tabla_afectada,
       id_registro_afectado: item.id_registro_afectado,
@@ -35,17 +36,17 @@ router.get("/", verifyToken, requireAdmin, async (req, res) => {
 
     res.json(auditoriaFormateada);
   } catch (err) {
-    console.error("Error en /api/auditoria:", err);
+    console.error("Error en GET /api/auditoria:", err);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
 
-// POST /api/auditoria - Crear un registro de auditoría (para uso interno)
+// POST /api/auditoria
 router.post("/", async (req, res) => {
   const { id_empleado, accion, tabla_afectada, id_registro_afectado, descripcion } = req.body;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("auditoria")
       .insert([
         {
@@ -64,19 +65,19 @@ router.post("/", async (req, res) => {
       return res.status(500).json({ message: "Error al crear registro de auditoría" });
     }
 
-    res.status(201).json({ message: "Registro de auditoría creado", data });
+    res.status(201).json({ message: "Registro creado", data });
   } catch (err) {
     console.error("Error en POST /api/auditoria:", err);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
 
-// GET /api/auditoria/ingresos-hoy - Obtener ingresos del día actual
+// GET /api/auditoria/ingresos-hoy
 router.get("/ingresos-hoy", verifyToken, requireAdmin, async (req, res) => {
   try {
-    const hoy = new Date().toISOString().split('T')[0];
-    
-    const { data, error } = await supabase
+    const hoy = new Date().toISOString().split("T")[0];
+
+    const { data, error } = await supabaseAdmin
       .from("facturas")
       .select("total_neto, fecha_hora")
       .gte("fecha_hora", `${hoy}T00:00:00`)
@@ -88,7 +89,10 @@ router.get("/ingresos-hoy", verifyToken, requireAdmin, async (req, res) => {
       return res.status(500).json({ message: "Error al obtener ingresos del día" });
     }
 
-    const ingresosHoy = data.reduce((total, factura) => total + (Number(factura.total_neto) || 0), 0);
+    const ingresosHoy = data.reduce(
+      (total, factura) => total + (Number(factura.total_neto) || 0),
+      0
+    );
     const totalVentas = data.length;
 
     res.json({

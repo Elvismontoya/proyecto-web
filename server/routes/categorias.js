@@ -1,77 +1,73 @@
-import express from 'express';
-import { supabase } from '../supabaseClient.js';
-import { verifyToken, requireAdmin } from '../authMiddleware.js';
+// server/routes/categorias.js
+import express from 'express'
+import { supabaseAdmin } from '../db/supabase.js'
+import { verifyToken, requireAdmin } from '../authMiddleware.js'
 
-const router = express.Router();
+const router = express.Router()
 
 // GET /api/categorias - Obtener todas las categorías activas
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, async (_req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('categorias')
       .select('*')
       .eq('activo', true)
-      .order('nombre');
+      .order('nombre')
 
     if (error) {
-      console.error('Error consultando categorías:', error);
-      return res.status(500).json({ message: 'Error al obtener categorías' });
+      console.error('Error consultando categorías:', error)
+      return res.status(500).json({ message: 'Error al obtener categorías' })
     }
 
-    res.json(data);
+    res.json(data)
   } catch (err) {
-    console.error('Error en /api/categorias:', err);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    console.error('Error en /api/categorias:', err)
+    res.status(500).json({ message: 'Error interno del servidor' })
   }
-});
+})
 
 // POST /api/categorias - Crear nueva categoría
 router.post('/', verifyToken, requireAdmin, async (req, res) => {
-  const { nombre, descripcion } = req.body;
+  const { nombre, descripcion } = req.body
 
   if (!nombre?.trim()) {
-    return res.status(400).json({ message: 'El nombre de la categoría es obligatorio' });
+    return res.status(400).json({ message: 'El nombre de la categoría es obligatorio' })
   }
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('categorias')
-      .insert([
-        {
-          nombre: nombre.trim(),
-          descripcion: descripcion?.trim() || '',
-          activo: true
-        }
-      ])
+      .insert([{
+        nombre: nombre.trim(),
+        descripcion: descripcion?.trim() || '',
+        activo: true
+      }])
       .select()
-      .single();
+      .single()
 
     if (error) {
-      console.error('Error creando categoría:', error);
-      return res.status(500).json({ message: 'Error al crear categoría' });
+      console.error('Error creando categoría:', error)
+      return res.status(500).json({ message: 'Error al crear categoría' })
     }
 
-    res.status(201).json({ 
-      message: 'Categoría creada correctamente', 
-      categoria: data 
-    });
+    res.status(201).json({ message: 'Categoría creada correctamente', categoria: data })
   } catch (err) {
-    console.error('Error en POST /api/categorias:', err);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    console.error('Error en POST /api/categorias:', err)
+    res.status(500).json({ message: 'Error interno del servidor' })
   }
-});
+})
 
 // PUT /api/categorias/:id - Actualizar categoría
 router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
-  const { id } = req.params;
-  const { nombre, descripcion } = req.body;
+  const { id } = req.params
+  const { nombre, descripcion } = req.body
 
   if (!nombre?.trim()) {
-    return res.status(400).json({ message: 'El nombre de la categoría es obligatorio' });
+    return res.status(400).json({ message: 'El nombre de la categoría es obligatorio' })
   }
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('categorias')
       .update({
         nombre: nombre.trim(),
@@ -80,107 +76,97 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
       })
       .eq('id_categoria', id)
       .select()
-      .single();
+      .single()
 
     if (error) {
-      console.error('Error actualizando categoría:', error);
-      return res.status(500).json({ message: 'Error al actualizar categoría' });
+      console.error('Error actualizando categoría:', error)
+      return res.status(500).json({ message: 'Error al actualizar categoría' })
     }
 
-    res.json({ 
-      message: 'Categoría actualizada correctamente', 
-      categoria: data 
-    });
+    res.json({ message: 'Categoría actualizada correctamente', categoria: data })
   } catch (err) {
-    console.error('Error en PUT /api/categorias:', err);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    console.error('Error en PUT /api/categorias:', err)
+    res.status(500).json({ message: 'Error interno del servidor' })
   }
-});
-
+})
 
 // DELETE /api/categorias/:id - Desactivar categoría (soft delete)
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params
 
   try {
-    // Verificar si la categoría existe
-    const { data: categoria, error: errorCategoria } = await supabase
+    // 1) Verificar si la categoría existe
+    const { data: categoria, error: errorCategoria } = await supabaseAdmin
       .from('categorias')
       .select('id_categoria, nombre')
       .eq('id_categoria', id)
-      .single();
+      .single()
 
     if (errorCategoria || !categoria) {
-      return res.status(404).json({ message: 'Categoría no encontrada' });
+      return res.status(404).json({ message: 'Categoría no encontrada' })
     }
 
-    // Verificar si hay productos en esta categoría
-    const { data: productos, error: errorProductos } = await supabase
+    // 2) Contar productos activos en esta categoría
+    const { count: productosActivosCount, error: countErr } = await supabaseAdmin
       .from('productos')
-      .select('id_producto, nombre_producto')
+      .select('id_producto', { count: 'exact', head: true })
       .eq('id_categoria', id)
       .eq('activo', true)
-      .limit(1);
 
-    if (errorProductos) {
-      console.error('Error verificando productos:', errorProductos);
+    if (countErr) {
+      console.error('Error contando productos:', countErr)
     }
 
-    let mensajeAdicional = '';
-    
-    // Si hay productos en esta categoría, quitarlos de la categoría
-    if (productos && productos.length > 0) {
-      const { error: errorUpdate } = await supabase
+    // 3) Quitar la categoría a los productos (dejarlos sin categoría)
+    if ((productosActivosCount ?? 0) > 0) {
+      const { error: errorUpdate } = await supabaseAdmin
         .from('productos')
         .update({ id_categoria: null })
-        .eq('id_categoria', id);
+        .eq('id_categoria', id)
+        .eq('activo', true)
 
       if (errorUpdate) {
-        console.error('Error actualizando productos:', errorUpdate);
-      } else {
-        mensajeAdicional = ` ${productos.length} producto(s) quedaron sin categoría.`;
+        console.error('Error actualizando productos:', errorUpdate)
       }
     }
 
-    // Hacer soft delete de la categoría
-    const { error } = await supabase
+    // 4) Soft delete de la categoría
+    const { error } = await supabaseAdmin
       .from('categorias')
-      .update({ 
+      .update({
         activo: false,
         fecha_actualizacion: new Date().toISOString()
       })
-      .eq('id_categoria', id);
+      .eq('id_categoria', id)
 
     if (error) {
-      console.error('Error desactivando categoría:', error);
-      return res.status(500).json({ message: 'Error al desactivar categoría' });
+      console.error('Error desactivando categoría:', error)
+      return res.status(500).json({ message: 'Error al desactivar categoría' })
     }
 
-    // Registrar en auditoría
+    // 5) Auditoría (no interrumpe respuesta si falla)
     try {
-      await supabase
+      await supabaseAdmin
         .from('auditoria')
-        .insert([
-          {
-            id_empleado: req.user.id_empleado,
-            accion: 'DELETE',
-            tabla_afectada: 'categorias',
-            id_registro_afectado: id,
-            descripcion: `Categoría desactivada: ${categoria.nombre}${mensajeAdicional}`
-          }
-        ]);
+        .insert([{
+          id_empleado: req.user?.id_empleado ?? null,
+          accion: 'DELETE',
+          tabla_afectada: 'categorias',
+          id_registro_afectado: id,
+          descripcion: `Categoría desactivada: ${categoria.nombre}. ${productosActivosCount || 0} producto(s) quedaron sin categoría.`
+        }])
     } catch (auditError) {
-      console.error('Error registrando auditoría:', auditError);
+      console.error('Error registrando auditoría:', auditError)
     }
 
-    res.json({ 
-      message: `Categoría desactivada correctamente.${mensajeAdicional}`,
+    res.json({
+      message: `Categoría desactivada correctamente. ${productosActivosCount || 0} producto(s) quedaron sin categoría.`,
       categoria: categoria.nombre
-    });
+    })
   } catch (err) {
-    console.error('Error en DELETE /api/categorias:', err);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    console.error('Error en DELETE /api/categorias:', err)
+    res.status(500).json({ message: 'Error interno del servidor' })
   }
-});
+})
 
-export default router;
+export default router
