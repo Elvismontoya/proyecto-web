@@ -80,7 +80,7 @@ export default function Inventario() {
         }
 
         try {
-            const res = await fetch(`/api/inventario/${id}`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/inventario/${id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",

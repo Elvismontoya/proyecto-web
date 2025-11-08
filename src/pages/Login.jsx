@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-
 const getToken = () => localStorage.getItem("token") || "";
 
 function guardarSesionYEntrar(navigate, token, rol) {
@@ -35,6 +34,7 @@ export default function Login() {
   // si ya hay sesión, redirige
   useEffect(() => {
     const t = getToken();
+
     const r = localStorage.getItem("rol");
     if (t && r) {
       if (r === "admin") navigate("/admin", { replace: true });
@@ -70,7 +70,7 @@ export default function Login() {
     setLoginMsg({ text: "Validando...", type: "muted" });
     setLoginLoading(true);
     try {
-      const res = await fetch(`https://nixgelato-production.up.railway.app/api/auth/login`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario: usuario.trim(), password: password.trim() }),
