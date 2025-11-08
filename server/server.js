@@ -17,7 +17,7 @@ const app = express()
 
 // --- CORS ---
 const isProd = process.env.NODE_ENV === 'production'
-const allowOrigin = process.env.FRONTEND_ORIGIN // ej: https://tu-app.vercel.app
+const allowOrigin = "https://nixgelato.vercel.app/"; 
 app.use(cors({
   origin: (origin, cb) => {
     if (!isProd) return cb(null, true) // en dev permite todo
