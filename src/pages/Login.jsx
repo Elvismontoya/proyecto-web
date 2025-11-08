@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+const baseURL = process.env.VITE_API_URL;
 const getToken = () => localStorage.getItem("token") || "";
 
 function guardarSesionYEntrar(navigate, token, rol) {
@@ -69,7 +70,7 @@ export default function Login() {
     setLoginMsg({ text: "Validando...", type: "muted" });
     setLoginLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${baseURL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario: usuario.trim(), password: password.trim() }),
