@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiGet, apiPost } from "../lib/api"; // 👈 cliente central
 
 const getToken = () => localStorage.getItem("token") || "";
 
 function guardarSesionYEntrar(navigate, token, rol) {
-  const r = String(rol || "").toLowerCase();
   localStorage.setItem("token", token);
-  localStorage.setItem("rol", r);
-  if (r === "admin") navigate("/admin", { replace: true });
+  localStorage.setItem("rol", rol);
+  if (rol === "admin") navigate("/admin", { replace: true });
   else navigate("/pedido", { replace: true });
 }
 
@@ -33,18 +31,20 @@ export default function Login() {
   const [registerMsg, setRegisterMsg] = useState({ text: "", type: "muted" });
   const [registerLoading, setRegisterLoading] = useState(false);
 
-  // si ya hay sesión, redirige; si no, consulta si hace falta crear admin
+  // si ya hay sesión, redirige
   useEffect(() => {
     const t = getToken();
-    const r = (localStorage.getItem("rol") || "").toLowerCase();
+    const r = localStorage.getItem("rol");
     if (t && r) {
       if (r === "admin") navigate("/admin", { replace: true });
       else navigate("/pedido", { replace: true });
       return;
     }
+    // verificar si se necesita crear primer admin
     (async () => {
       try {
-        const data = await apiGet("/api/auth/check-initial"); // público
+        const res = await fetch("/api/auth/check-initial");
+        const data = await res.json();
         if (data?.needsAdmin === true) {
           setShowRegister(true);
           setTab("register");
@@ -53,7 +53,7 @@ export default function Login() {
           setTab("login");
         }
       } catch {
-        // si falla, por seguridad ocultamos registro y dejamos login
+        // por seguridad, si falla: ocultar registro
         setShowRegister(false);
         setTab("login");
       }
@@ -69,18 +69,20 @@ export default function Login() {
     setLoginMsg({ text: "Validando...", type: "muted" });
     setLoginLoading(true);
     try {
-      const data = await apiPost("/api/auth/login", {
-        usuario: usuario.trim(),
-        password: password.trim(),
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario: usuario.trim(), password: password.trim() }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoginMsg({ text: data.message || "Credenciales inválidas.", type: "danger" });
+        return;
+      }
       setLoginMsg({ text: "Ingreso exitoso.", type: "success" });
       guardarSesionYEntrar(navigate, data.token, data.rol);
-    } catch (err) {
-      const msg =
-        err?.message ||
-        (err?.message === "[object Object]" ? "Credenciales inválidas." : null) ||
-        "Credenciales inválidas.";
-      setLoginMsg({ text: msg, type: "danger" });
+    } catch {
+      setLoginMsg({ text: "Error conectando con el servidor.", type: "danger" });
     } finally {
       setLoginLoading(false);
     }
@@ -95,19 +97,25 @@ export default function Login() {
     setRegisterMsg({ text: "Creando administrador...", type: "muted" });
     setRegisterLoading(true);
     try {
-      const data = await apiPost("/api/auth/register-admin", {
-        nombres: regNombres.trim(),
-        apellidos: regApellidos.trim(),
-        usuario: regUsuario.trim(),
-        password: regPassword.trim(),
+      const res = await fetch("/api/auth/register-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombres: regNombres.trim(),
+          apellidos: regApellidos.trim(),
+          usuario: regUsuario.trim(),
+          password: regPassword.trim(),
+        }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRegisterMsg({ text: data.message || "No se pudo crear el administrador.", type: "danger" });
+        return;
+      }
       setRegisterMsg({ text: "Administrador creado. Ingresando...", type: "success" });
       guardarSesionYEntrar(navigate, data.token, data.rol);
-    } catch (err) {
-      const msg =
-        (typeof err?.message === "string" && err.message) ||
-        "No se pudo crear el administrador.";
-      setRegisterMsg({ text: msg, type: "danger" });
+    } catch {
+      setRegisterMsg({ text: "Error conectando con el servidor.", type: "danger" });
     } finally {
       setRegisterLoading(false);
     }
@@ -129,7 +137,7 @@ export default function Login() {
             <div className="col-md-6 col-lg-5">
               <div className="card card-soft">
                 <div className="card-body">
-                  {/* Tabs controladas por estado */}
+                  {/* Tabs (controladas por estado, sin JS de Bootstrap) */}
                   <ul className="nav nav-tabs mb-3">
                     <li className="nav-item">
                       <button

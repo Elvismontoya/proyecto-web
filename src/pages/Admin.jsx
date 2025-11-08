@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiGet, apiPost, apiPut, apiDel } from "../lib/api"; // 👈 usa el cliente central
 
 const money = (n) =>
   Number(n || 0).toLocaleString("es-CO", { style: "currency", currency: "COP" });
 
+const getToken = () => localStorage.getItem("token") || "";
+
 export default function Admin() {
   const navigate = useNavigate();
 
-  // auth check (si ya usas <ProtectedRoute roles={['admin']}> puedes quitar este efecto)
+  // auth check
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const rol = (localStorage.getItem("rol") || "").toLowerCase();
+    const rol = localStorage.getItem("rol");
     if (!token) { navigate("/login", { replace: true }); return; }
     if (rol !== "admin") { navigate("/pedido", { replace: true }); return; }
   }, [navigate]);
@@ -62,7 +63,17 @@ export default function Admin() {
   async function cargarProductos() {
     setMsgTabla("Cargando productos...");
     try {
-      const data = await apiGet("/api/productos"); // 👈 ahora usa BASE_URL
+      const res = await fetch("/api/productos", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) {
+        setMsgTabla("No autorizado o error cargando.");
+        setProductos([]);
+        return;
+      }
+      const data = await res.json();
+      
+      // Transformar los datos para que sean compatibles con el frontend
       const productosTransformados = transformarProductos(data);
       setProductos(Array.isArray(productosTransformados) ? productosTransformados : []);
       setMsgTabla(
@@ -72,16 +83,17 @@ export default function Admin() {
       );
     } catch (e) {
       console.error("Error cargando productos", e);
-      setMsgTabla("No autorizado o error cargando.");
+      setMsgTabla("Error cargando productos.");
       setProductos([]);
     }
   }
 
-  // Adaptar respuesta agrupada por categorías a lista plana para la tabla
+  // Función para transformar los productos del backend al formato del frontend
   function transformarProductos(data) {
     if (!Array.isArray(data)) return [];
-    return data.flatMap(categoria =>
-      (categoria.productos || []).map(producto => ({
+    
+    return data.flatMap(categoria => 
+      categoria.productos?.map(producto => ({
         id: producto.id,
         nombre: producto.nombre,
         precio: producto.precio,
@@ -90,14 +102,19 @@ export default function Admin() {
         permiteToppings: producto.permiteToppings,
         id_categoria: producto.id_categoria,
         categoria: categoria.nombre
-      }))
+      })) || []
     );
   }
 
   async function cargarCategorias() {
     try {
-      const data = await apiGet("/api/categorias");
-      setCategorias(Array.isArray(data) ? data : []);
+      const res = await fetch("/api/categorias", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCategorias(Array.isArray(data) ? data : []);
+      }
     } catch (e) {
       console.error("Error cargando categorías", e);
       setCategorias([]);
@@ -162,28 +179,58 @@ export default function Admin() {
     }
 
     try {
+      let res;
       if (editModeProducto) {
-        await apiPut(`/api/productos/${formProducto.id}`, body);
+        res = await fetch(`/api/productos/${formProducto.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(body),
+        });
       } else {
-        await apiPost("/api/productos", body);
+        res = await fetch("/api/productos", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(body),
+        });
       }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsgFormProducto({ text: data.message || "Error al guardar.", type: "danger" });
+        return;
+      }
+
       setMsgFormProducto({ text: "Guardado correctamente.", type: "success" });
       resetFormProducto();
       await cargarProductos();
     } catch (e) {
       console.error(e);
-      setMsgFormProducto({ text: "Error al guardar.", type: "danger" });
+      setMsgFormProducto({ text: "Error al conectar con el servidor.", type: "danger" });
     }
   }
 
   async function eliminarProducto(id) {
     if (!confirm("¿Seguro que deseas eliminar este producto?")) return;
     try {
-      await apiDel(`/api/productos/${id}`);
+      const res = await fetch(`/api/productos/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.message || "No se pudo eliminar");
+        return;
+      }
       await cargarProductos();
     } catch (e) {
       console.error(e);
-      alert("No se pudo eliminar");
+      alert("Error al conectar con el servidor.");
     }
   }
 
@@ -205,7 +252,11 @@ export default function Admin() {
   }
 
   function resetFormCategoria() {
-    setFormCategoria({ id: "", nombre: "", descripcion: "" });
+    setFormCategoria({
+      id: "",
+      nombre: "",
+      descripcion: ""
+    });
     setMsgFormCategoria({ text: "", type: "muted" });
   }
 
@@ -215,7 +266,7 @@ export default function Admin() {
 
     const body = {
       nombre: formCategoria.nombre.trim(),
-      descripcion: (formCategoria.descripcion || "").trim()
+      descripcion: formCategoria.descripcion.trim()
     };
 
     if (!body.nombre) {
@@ -224,29 +275,59 @@ export default function Admin() {
     }
 
     try {
+      let res;
       if (editModeCategoria) {
-        await apiPut(`/api/categorias/${formCategoria.id}`, body);
+        res = await fetch(`/api/categorias/${formCategoria.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(body),
+        });
       } else {
-        await apiPost("/api/categorias", body);
+        res = await fetch("/api/categorias", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(body),
+        });
       }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsgFormCategoria({ text: data.message || "Error al guardar.", type: "danger" });
+        return;
+      }
+
       setMsgFormCategoria({ text: "Categoría guardada correctamente.", type: "success" });
       resetFormCategoria();
       await cargarCategorias();
     } catch (e) {
       console.error(e);
-      setMsgFormCategoria({ text: "Error al guardar.", type: "danger" });
+      setMsgFormCategoria({ text: "Error al conectar con el servidor.", type: "danger" });
     }
   }
 
   async function eliminarCategoria(id) {
     if (!confirm("¿Seguro que deseas eliminar esta categoría? Los productos asociados quedarán sin categoría.")) return;
     try {
-      await apiDel(`/api/categorias/${id}`);
+      const res = await fetch(`/api/categorias/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.message || "No se pudo eliminar");
+        return;
+      }
       await cargarCategorias();
       await cargarProductos();
     } catch (e) {
       console.error(e);
-      alert("No se pudo eliminar");
+      alert("Error al conectar con el servidor.");
     }
   }
 

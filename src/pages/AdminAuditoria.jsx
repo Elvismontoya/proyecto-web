@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiGet } from "../lib/api"; // 👈 usa el cliente central
 
 // helpers
 const money = (n) =>
   Number(n || 0).toLocaleString("es-CO", { style: "currency", currency: "COP" });
+
+const getToken = () => localStorage.getItem("token") || "";
 
 export default function AdminAuditoria() {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ export default function AdminAuditoria() {
   // auth check
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const rol = (localStorage.getItem("rol") || "").toLowerCase();
+    const rol = localStorage.getItem("rol");
     if (!token) { navigate("/login", { replace: true }); return; }
     if (rol !== "admin") { navigate("/pedido", { replace: true }); return; }
   }, [navigate]);
@@ -53,14 +54,27 @@ export default function AdminAuditoria() {
   async function cargarIngresosPorDia(d = fechaDesde, h = fechaHasta) {
     try {
       setMsgIngresos("Cargando ingresos...");
-
+      let url = "/api/facturas/ingresos-por-dia";
       const params = new URLSearchParams();
       if (d) params.append("fecha_desde", d);
       if (h) params.append("fecha_hasta", h);
       const qs = params.toString();
-      const url = `/api/facturas/ingresos-por-dia${qs ? `?${qs}` : ""}`;
+      if (qs) url += `?${qs}`;
 
-      const data = await apiGet(url); // 👈 BASE_URL + headers automáticos
+      console.log("📊 Cargando ingresos desde:", url);
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Error cargando ingresos");
+      }
+
+      const data = await res.json();
+      console.log("✅ Ingresos cargados:", data);
+      
       setIngresosDia(Array.isArray(data) ? data : []);
       setMsgIngresos(
         Array.isArray(data) && data.length
@@ -78,7 +92,16 @@ export default function AdminAuditoria() {
   async function cargarAuditoria() {
     try {
       setMsgAuditoria("Cargando auditoría...");
-      const data = await apiGet("/api/auditoria");
+      const res = await fetch("/api/auditoria", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Error cargando auditoría");
+      }
+      
+      const data = await res.json();
       setAuditoria(Array.isArray(data) ? data : []);
       setMsgAuditoria(
         Array.isArray(data) && data.length
@@ -95,10 +118,19 @@ export default function AdminAuditoria() {
   // cargar ingresos de hoy
   async function cargarIngresosHoy() {
     try {
-      const data = await apiGet("/api/auditoria/ingresos-hoy");
-      setIngresosHoy(data || null);
-    } catch (_e) {
-      // silencioso: si falla, solo no mostramos la tarjeta
+      const res = await fetch("/api/auditoria/ingresos-hoy", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setIngresosHoy(data);
+        console.log("💰 Ingresos hoy:", data);
+      } else {
+        console.warn("No se pudieron cargar los ingresos de hoy");
+      }
+    } catch (e) {
+      console.error("Error cargando ingresos de hoy:", e);
     }
   }
 
@@ -141,6 +173,7 @@ export default function AdminAuditoria() {
   if (cargando) {
     return (
       <>
+        <Navbar logout={logout} />
         <main className="container my-4">
           <div className="text-center py-5">
             <div className="spinner-border text-brand" role="status">
@@ -155,6 +188,7 @@ export default function AdminAuditoria() {
 
   return (
     <>
+      <Navbar logout={logout} />
       
       <main className="container my-4">
         {/* Encabezado */}
@@ -202,8 +236,9 @@ export default function AdminAuditoria() {
           </div>
         </div>
 
-        {/* Resumen de ingresos */}
+        {/* Resumen de ingresos - INCLUYENDO HOY */}
         <div className="row g-4 mb-4">
+          {/* Ingresos del día de hoy */}
           {ingresosHoy && (
             <div className="col-md-3">
               <div className="card card-soft bg-warning text-dark">
@@ -247,7 +282,7 @@ export default function AdminAuditoria() {
           </div>
         </div>
 
-        {/* Ingresos por día */}
+        {/* Ingresos por día - TABLA PRINCIPAL */}
         <div className="card card-soft mb-4">
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-center mb-3">
@@ -381,6 +416,25 @@ export default function AdminAuditoria() {
 
       <Footer />
     </>
+  );
+}
+
+// Componentes reutilizables
+function Navbar({ logout }) {
+  return (
+    <nav className="navbar navbar-expand-lg border-bottom sticky-top">
+      <div className="container">
+        <Link className="navbar-brand fw-semibold" to="/">🍨 GelatoPro</Link>
+        <div className="d-flex flex-wrap gap-2">
+          <Link className="btn btn-sm btn-outline-brand" to="/pedido">Caja / Pedido</Link>
+          <Link className="btn btn-sm btn-outline-brand" to="/admin">Productos</Link>
+          <Link className="btn btn-sm btn-brand" to="/admin/auditoria">Auditoría</Link>
+          <Link className="btn btn-sm btn-outline-brand" to="/admin/facturas">Facturas</Link>
+          <Link className="btn btn-sm btn-outline-brand" to="/admin/inventario">Inventario</Link>
+          <button onClick={logout} className="btn btn-sm btn-outline-secondary">Cerrar sesión</button>
+        </div>
+      </div>
+    </nav>
   );
 }
 
