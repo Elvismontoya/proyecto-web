@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiGet } from "../lib/api"; // 👈 usa el cliente central
 
 const money = (n) =>
   Number(n || 0).toLocaleString("es-CO", { style: "currency", currency: "COP" });
-
-const getToken = () => localStorage.getItem("token") || "";
 
 export default function AdminFacturas() {
   const navigate = useNavigate();
@@ -32,7 +31,7 @@ export default function AdminFacturas() {
   // auth
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const rol = localStorage.getItem("rol");
+    const rol = (localStorage.getItem("rol") || "").toLowerCase();
     if (!token) { navigate("/login", { replace: true }); return; }
     if (rol !== "admin") { navigate("/pedido", { replace: true }); return; }
   }, [navigate]);
@@ -46,13 +45,8 @@ export default function AdminFacturas() {
   // cargar empleados
   async function cargarEmpleados() {
     try {
-      const res = await fetch("/api/empleados", {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setEmpleados(Array.isArray(data) ? data : []);
-      }
+      const data = await apiGet("/api/empleados");
+      setEmpleados(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Error cargando empleados:", e);
     }
@@ -62,19 +56,15 @@ export default function AdminFacturas() {
   async function cargarFacturas(fIni = fechaDesde, fFin = fechaHasta, emp = idEmpleado) {
     try {
       setMsgFacturas("Cargando facturas...");
-      let url = "/api/facturas";
+
       const params = new URLSearchParams();
       if (fIni) params.append("fecha_desde", fIni);
       if (fFin) params.append("fecha_hasta", fFin);
       if (emp) params.append("id_empleado", emp);
-      const qs = params.toString();
-      if (qs) url += `?${qs}`;
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      if (!res.ok) throw new Error("Error cargando facturas");
-      const data = await res.json();
+      const url = `/api/facturas${params.toString() ? `?${params.toString()}` : ""}`;
+      const data = await apiGet(url);
+
       const lista = Array.isArray(data) ? data : [];
       setFacturas(lista);
       setMsgFacturas(
@@ -90,11 +80,7 @@ export default function AdminFacturas() {
   // ver detalle
   async function verDetalleFactura(idFactura) {
     try {
-      const res = await fetch(`/api/facturas/${idFactura}/detalle`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      if (!res.ok) throw new Error("Error cargando detalle");
-      const data = await res.json();
+      const data = await apiGet(`/api/facturas/${idFactura}/detalle`);
       setDetalle(data); // { factura, productos }
       setShowModal(true);
     } catch (e) {
@@ -116,21 +102,6 @@ export default function AdminFacturas() {
 
   return (
     <>
-      {/* Navbar */}
-      <nav className="navbar navbar-expand-lg border-bottom sticky-top">
-        <div className="container">
-          <Link className="navbar-brand fw-semibold" to="/">🍨 GelatoPro</Link>
-          <div className="d-flex flex-wrap gap-2">
-            <Link className="btn btn-sm btn-outline-brand" to="/pedido">Caja / Pedido</Link>
-            <Link className="btn btn-sm btn-outline-brand" to="/admin">Productos</Link>
-            <Link className="btn btn-sm btn-outline-brand" to="/admin/auditoria">Auditoría</Link>
-            <Link className="btn btn-sm btn-brand" to="/admin/facturas">Facturas</Link>
-            <Link className="btn btn-sm btn-outline-brand" to="/admin/inventario">Inventario</Link>
-            <button onClick={logout} className="btn btn-sm btn-outline-secondary">Cerrar sesión</button>
-          </div>
-        </div>
-      </nav>
-
       <main className="container my-4">
         {/* Encabezado */}
         <section className="hero mb-4 text-center">
@@ -241,7 +212,7 @@ export default function AdminFacturas() {
         </div>
       </main>
 
-      {/* Modal Detalle (controlado por estado, sin JS de Bootstrap) */}
+      {/* Modal Detalle */}
       {showModal && detalle && (
         <>
           <div className="modal fade show d-block" tabIndex="-1" role="dialog">

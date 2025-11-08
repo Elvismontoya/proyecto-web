@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiGet, apiPost } from "../lib/api";
 
 const money = (n) =>
   Number(n || 0).toLocaleString("es-CO", { style: "currency", currency: "COP" });
@@ -42,40 +43,25 @@ export default function Pedido() {
   async function cargarDatos() {
     setCargando(true);
     try {
-      // Cargar categorías con productos
-      const [resProductos, resTamanos, resToppings] = await Promise.all([
-        fetch("/api/productos", {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        }),
-        fetch("/api/tamanos", {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        }),
-        fetch("/api/toppings", {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        })
+      // All via API client -> usa VITE_API_URL y añade headers
+      const [dataProductos, dataTamanos, dataToppings] = await Promise.all([
+        apiGet("/api/productos"),
+        apiGet("/api/tamanos"),
+        apiGet("/api/toppings"),
       ]);
-
-      if (!resProductos.ok || !resTamanos.ok || !resToppings.ok) {
-        throw new Error("Error cargando datos");
-      }
-
-      const dataProductos = await resProductos.json();
-      const dataTamanos = await resTamanos.json();
-      const dataToppings = await resToppings.json();
 
       setCategorias(Array.isArray(dataProductos) ? dataProductos : []);
       setTamanos(Array.isArray(dataTamanos) ? dataTamanos : []);
       setToppings(Array.isArray(dataToppings) ? dataToppings : []);
-
     } catch (error) {
       console.error("Error cargando datos:", error);
-      alert("Error cargando los datos del sistema");
+      alert(error?.message || "Error cargando los datos del sistema");
     } finally {
       setCargando(false);
     }
   }
 
-  // Cargar métodos de pago
+  // Cargar métodos de pago (mock local por ahora)
   function cargarMetodosPago() {
     const fake = [
       { id: 1, nombre_metodo: "Efectivo", description: "Pago en caja", activo: true },
@@ -108,24 +94,26 @@ export default function Pedido() {
   }
 
   function toggleTopping(topping) {
-    setToppingsSeleccionados(prev => {
-      const existe = prev.find(t => t.id_topping === topping.id_topping);
-      if (existe) {
-        return prev.filter(t => t.id_topping !== topping.id_topping);
-      } else {
-        return [...prev, topping];
-      }
+    setToppingsSeleccionados((prev) => {
+      const existe = prev.find((t) => t.id_topping === topping.id_topping);
+      return existe ? prev.filter((t) => t.id_topping !== topping.id_topping) : [...prev, topping];
     });
   }
 
   function calcularPrecioFinal() {
     if (!productoSeleccionado || !tamanoSeleccionado) return 0;
 
-    let precioBase = productoSeleccionado.precio * tamanoSeleccionado.multiplicador;
-    const precioToppings = toppingsSeleccionados.reduce((sum, topping) => 
-      sum + topping.precio_adicional, 0);
-    
-    return Math.round(precioBase + precioToppings);
+    const base = Number(productoSeleccionado.precio || 0);
+    const mult = Number(tamanoSeleccionado.multiplicador || 1);
+    const precioBase = base * mult;
+
+    const precioTops = toppingsSeleccionados.reduce(
+      (sum, t) => sum + Number(t.precio_adicional || 0),
+      0
+    );
+
+    // redondeamos a entero (COP)
+    return Math.round(precioBase + precioTops);
   }
 
   function agregarAlPedido() {
@@ -142,13 +130,13 @@ export default function Pedido() {
       toppings: [...toppingsSeleccionados],
       cantidad: 1,
       precioUnitario: precioFinal,
-      subtotal: precioFinal
+      subtotal: precioFinal,
     };
 
-    setPedido(prev => [...prev, itemPedido]);
+    setPedido((prev) => [...prev, itemPedido]);
     resetSeleccion();
-    
-    // Mostrar confirmación
+
+    // Confirmación simple
     alert(`✅ ${productoSeleccionado.nombre} (${tamanoSeleccionado.nombre}) agregado al pedido`);
   }
 
@@ -181,7 +169,7 @@ export default function Pedido() {
   }
 
   function vaciarPedido() {
-    if (pedido.length === 0) return;
+    if (!pedido.length) return;
     if (confirm("¿Estás seguro de que quieres vaciar el pedido?")) {
       setPedido([]);
     }
@@ -191,8 +179,8 @@ export default function Pedido() {
   // Cálculos
   // =========================
   const subtotal = pedido.reduce((sum, i) => sum + i.subtotal, 0);
-  const total = Math.max(subtotal - descuento, 0);
-  const cambio = Math.max(pago - total, 0);
+  const total = Math.max(subtotal - Number(descuento || 0), 0);
+  const cambio = Math.max(Number(pago || 0) - total, 0);
 
   // =========================
   // Cobrar
@@ -202,46 +190,41 @@ export default function Pedido() {
     if (!metodoPago) return alert("Seleccione método de pago.");
     if (pago < total) return alert("El pago es insuficiente.");
 
+    // Ajuste: el backend de AdminFacturas muestra `observaciones` como cliente
     const payload = {
-      cliente,
+      observaciones: cliente || null,
       subtotal,
-      descuento,
+      descuento: Number(descuento || 0),
       total,
       metodo_pago: metodoPago,
       productos: pedido.map((item) => ({
-        id: item.producto.id,
+        id_producto: item.producto.id,
         cantidad: item.cantidad,
-        precio: item.precioUnitario,
+        precio_unitario: item.precioUnitario,
         tamano: item.tamano.nombre,
-        toppings: item.toppings.map(t => t.id_topping)
+        toppings: item.toppings.map((t) => t.id_topping),
       })),
     };
 
     try {
-      const res = await fetch("/api/facturas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
+      const data = await apiPost("/api/facturas", payload);
       alert(`✅ Factura #${data.id_factura} registrada correctamente`);
-      
+
       // Resetear todo después de cobrar
       setPedido([]);
       setCliente("");
       setPago(0);
       setDescuento(0);
       setMetodoPago("");
-      
     } catch (err) {
-      alert("❌ Error: " + err.message);
+      alert("❌ Error: " + (err?.message || "No se pudo registrar la factura"));
     }
+  }
+
+  function cerrarTurno() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("rol");
+    navigate("/login", { replace: true });
   }
 
   if (cargando) {
@@ -274,7 +257,7 @@ export default function Pedido() {
           <Link className="navbar-brand fw-semibold" to="/">
             🍨 GelatoPro - Caja
           </Link>
-          <button className="btn btn-sm btn-outline-secondary ms-lg-3" onClick={() => navigate("/login")}>
+          <button className="btn btn-sm btn-outline-secondary ms-lg-3" onClick={cerrarTurno}>
             Cerrar turno
           </button>
         </div>
@@ -301,7 +284,7 @@ export default function Pedido() {
                         No hay productos disponibles. Contacta al administrador.
                       </div>
                     ) : (
-                      categorias.map(categoria => (
+                      categorias.map((categoria) => (
                         <div key={categoria.id} className="mb-4">
                           <h6 className="text-primary mb-2 border-bottom pb-1">
                             {categoria.nombre}
@@ -309,35 +292,44 @@ export default function Pedido() {
                           <div className="row g-3">
                             {categoria.productos.map((producto) => (
                               <div className="col-6 col-md-4 col-xl-3" key={producto.id}>
-                                <div 
-                                  className={`card h-100 ${producto.stock <= 0 ? 'opacity-50' : 'hover-lift'}`}
-                                  style={{ 
-                                    cursor: producto.stock > 0 ? 'pointer' : 'not-allowed',
-                                    transition: 'all 0.3s ease'
+                                <div
+                                  className={`card h-100 ${
+                                    producto.stock <= 0 ? "opacity-50" : "hover-lift"
+                                  }`}
+                                  style={{
+                                    cursor: producto.stock > 0 ? "pointer" : "not-allowed",
+                                    transition: "all 0.3s ease",
                                   }}
                                   onClick={() => seleccionarProducto(producto)}
                                 >
                                   <img
-                                    src={producto.img || '/placeholder-image.jpg'}
+                                    src={producto.img || "/placeholder-image.jpg"}
                                     alt={producto.nombre}
                                     className="card-img-top"
-                                    style={{ 
-                                      objectFit: "cover", 
+                                    style={{
+                                      objectFit: "cover",
                                       height: 110,
-                                      backgroundColor: '#f8f9fa'
+                                      backgroundColor: "#f8f9fa",
                                     }}
                                     onError={(e) => {
-                                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjExMCIgdmlld0JveD0iMCAwIDIwMCAxMTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTEwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik04MCA1NUw3MCA0NUg2MEw1MCA1NUw2MCA2NUg3MEw4MCA1NVoiIGZpbGw9IiNENkQ2RDYiLz4KPHN2Zz4K';
+                                      e.target.src =
+                                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjExMCIgdmlld0JveD0iMCAwIDIwMCAxMTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTEwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik04MCA1NUw3MCA0NUg2MEw1MCA1NUw2MCA2NUg3MEw4MCA1NVoiIGZpbGw9IiNENkQ2RDYiLz4KPHN2Zz4K";
                                     }}
                                   />
                                   <div className="card-body p-2 d-flex flex-column">
                                     <div className="fw-semibold small">{producto.nombre}</div>
                                     <div className="small text-muted">{money(producto.precio)}</div>
-                                    <div className={`small ${producto.stock > 0 ? "text-success" : "text-danger"}`}>
+                                    <div
+                                      className={`small ${
+                                        producto.stock > 0 ? "text-success" : "text-danger"
+                                      }`}
+                                    >
                                       Stock: {producto.stock}
                                     </div>
                                     {producto.permiteToppings && (
-                                      <span className="badge bg-info mt-1 small">Incluye toppings</span>
+                                      <span className="badge bg-info mt-1 small">
+                                        Incluye toppings
+                                      </span>
                                     )}
                                   </div>
                                 </div>
@@ -354,15 +346,17 @@ export default function Pedido() {
                 {productoSeleccionado && !tamanoSeleccionado && (
                   <div>
                     <div className="d-flex align-items-center mb-3">
-                      <button 
+                      <button
                         className="btn btn-sm btn-outline-secondary me-2"
                         onClick={resetSeleccion}
                       >
                         ← Volver
                       </button>
-                      <h6 className="mb-0">2. Elige el tamaño para: <strong>{productoSeleccionado.nombre}</strong></h6>
+                      <h6 className="mb-0">
+                        2. Elige el tamaño para: <strong>{productoSeleccionado.nombre}</strong>
+                      </h6>
                     </div>
-                    
+
                     <div className="row g-3">
                       {tamanos.length === 0 ? (
                         <div className="col-12">
@@ -371,22 +365,34 @@ export default function Pedido() {
                           </div>
                         </div>
                       ) : (
-                        tamanos.map(tamano => (
+                        tamanos.map((tamano) => (
                           <div className="col-6 col-md-4" key={tamano.id_tamano}>
-                            <div 
-                              className={`card text-center hover-lift ${tamanoSeleccionado?.id_tamano === tamano.id_tamano ? 'border-primary border-2' : ''}`}
-                              style={{ cursor: 'pointer' }}
+                            <div
+                              className={`card text-center hover-lift ${
+                                tamanoSeleccionado?.id_tamano === tamano.id_tamano
+                                  ? "border-primary border-2"
+                                  : ""
+                              }`}
+                              style={{ cursor: "pointer" }}
                               onClick={() => seleccionarTamano(tamano)}
                             >
                               <div className="card-body">
                                 <h6 className="card-title">{tamano.nombre}</h6>
                                 <div className="text-muted small">{tamano.descripcion}</div>
                                 <div className="fw-semibold text-success mt-2">
-                                  {money(productoSeleccionado.precio * tamano.multiplicador)}
+                                  {money(
+                                    Number(productoSeleccionado.precio || 0) *
+                                      Number(tamano.multiplicador || 1)
+                                  )}
                                 </div>
-                                {tamano.multiplicador > 1 && (
+                                {Number(tamano.multiplicador || 1) > 1 && (
                                   <div className="small text-muted">
-                                    +{money(productoSeleccionado.precio * tamano.multiplicador - productoSeleccionado.precio)}
+                                    +
+                                    {money(
+                                      Number(productoSeleccionado.precio || 0) *
+                                        Number(tamano.multiplicador || 1) -
+                                        Number(productoSeleccionado.precio || 0)
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -399,83 +405,96 @@ export default function Pedido() {
                 )}
 
                 {/* Paso 3: Selección de Toppings (si aplica) */}
-                {productoSeleccionado && tamanoSeleccionado && productoSeleccionado.permiteToppings && (
-                  <div>
-                    <div className="d-flex align-items-center mb-3">
-                      <button 
-                        className="btn btn-sm btn-outline-secondary me-2"
-                        onClick={() => setTamanoSeleccionado(null)}
-                      >
-                        ← Volver
-                      </button>
-                      <h6 className="mb-0">
-                        3. Elige toppings para: <strong>{productoSeleccionado.nombre}</strong> ({tamanoSeleccionado.nombre})
-                      </h6>
-                    </div>
+                {productoSeleccionado &&
+                  tamanoSeleccionado &&
+                  productoSeleccionado.permiteToppings && (
+                    <div>
+                      <div className="d-flex align-items-center mb-3">
+                        <button
+                          className="btn btn-sm btn-outline-secondary me-2"
+                          onClick={() => setTamanoSeleccionado(null)}
+                        >
+                          ← Volver
+                        </button>
+                        <h6 className="mb-0">
+                          3. Elige toppings para: <strong>{productoSeleccionado.nombre}</strong>{" "}
+                          ({tamanoSeleccionado.nombre})
+                        </h6>
+                      </div>
 
-                    <div className="row g-2 mb-3">
-                      {toppings.length === 0 ? (
-                        <div className="col-12">
-                          <div className="alert alert-info">
-                            No hay toppings disponibles. Continuar sin toppings.
-                          </div>
-                        </div>
-                      ) : (
-                        toppings.map(topping => (
-                          <div className="col-6 col-md-4 col-lg-3" key={topping.id_topping}>
-                            <div 
-                              className={`card text-center hover-lift ${toppingsSeleccionados.find(t => t.id_topping === topping.id_topping) ? 'border-success border-2 bg-light' : ''}`}
-                              style={{ cursor: 'pointer' }}
-                              onClick={() => toggleTopping(topping)}
-                            >
-                              <div className="card-body p-2">
-                                <h6 className="card-title small mb-1">{topping.nombre}</h6>
-                                <div className="text-success small">+{money(topping.precio_adicional)}</div>
-                              </div>
+                      <div className="row g-2 mb-3">
+                        {toppings.length === 0 ? (
+                          <div className="col-12">
+                            <div className="alert alert-info">
+                              No hay toppings disponibles. Continuar sin toppings.
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
-
-                    <div className="card bg-light">
-                      <div className="card-body">
-                        <div className="row align-items-center">
-                          <div className="col">
-                            <strong>Total del item:</strong> 
-                            <span className="fs-5 ms-2 text-success">{money(calcularPrecioFinal())}</span>
-                            {toppingsSeleccionados.length > 0 && (
-                              <div className="small text-muted mt-1">
-                                <strong>Toppings seleccionados:</strong> {toppingsSeleccionados.map(t => t.nombre).join(', ')}
+                        ) : (
+                          toppings.map((topping) => {
+                            const checked = !!toppingsSeleccionados.find(
+                              (t) => t.id_topping === topping.id_topping
+                            );
+                            return (
+                              <div className="col-6 col-md-4 col-lg-3" key={topping.id_topping}>
+                                <div
+                                  className={`card text-center hover-lift ${
+                                    checked ? "border-success border-2 bg-light" : ""
+                                  }`}
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => toggleTopping(topping)}
+                                >
+                                  <div className="card-body p-2">
+                                    <h6 className="card-title small mb-1">{topping.nombre}</h6>
+                                    <div className="text-success small">
+                                      +{money(topping.precio_adicional)}
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                          <div className="col-auto">
-                            <button 
-                              className="btn btn-success btn-lg"
-                              onClick={agregarAlPedido}
-                            >
-                              Agregar al Pedido
-                            </button>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="card bg-light">
+                        <div className="card-body">
+                          <div className="row align-items-center">
+                            <div className="col">
+                              <strong>Total del item:</strong>
+                              <span className="fs-5 ms-2 text-success">
+                                {money(calcularPrecioFinal())}
+                              </span>
+                              {toppingsSeleccionados.length > 0 && (
+                                <div className="small text-muted mt-1">
+                                  <strong>Toppings seleccionados:</strong>{" "}
+                                  {toppingsSeleccionados.map((t) => t.nombre).join(", ")}
+                                </div>
+                              )}
+                            </div>
+                            <div className="col-auto">
+                              <button className="btn btn-success btn-lg" onClick={agregarAlPedido}>
+                                Agregar al Pedido
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Si el producto no permite toppings, mostrar botón directo */}
                 {productoSeleccionado && tamanoSeleccionado && !productoSeleccionado.permiteToppings && (
                   <div>
                     <div className="d-flex align-items-center mb-3">
-                      <button 
+                      <button
                         className="btn btn-sm btn-outline-secondary me-2"
                         onClick={() => setTamanoSeleccionado(null)}
                       >
                         ← Volver
                       </button>
                       <h6 className="mb-0">
-                        Listo para agregar: <strong>{productoSeleccionado.nombre}</strong> ({tamanoSeleccionado.nombre})
+                        Listo para agregar: <strong>{productoSeleccionado.nombre}</strong> (
+                        {tamanoSeleccionado.nombre})
                       </h6>
                     </div>
 
@@ -483,14 +502,13 @@ export default function Pedido() {
                       <div className="card-body">
                         <div className="row align-items-center">
                           <div className="col">
-                            <strong>Total del item:</strong> 
-                            <span className="fs-5 ms-2 text-success">{money(calcularPrecioFinal())}</span>
+                            <strong>Total del item:</strong>
+                            <span className="fs-5 ms-2 text-success">
+                              {money(calcularPrecioFinal())}
+                            </span>
                           </div>
                           <div className="col-auto">
-                            <button 
-                              className="btn btn-success btn-lg"
-                              onClick={agregarAlPedido}
-                            >
+                            <button className="btn btn-success btn-lg" onClick={agregarAlPedido}>
                               Agregar al Pedido
                             </button>
                           </div>
@@ -504,8 +522,8 @@ export default function Pedido() {
 
                 {/* Acciones rápidas */}
                 <div className="d-flex gap-2">
-                  <button 
-                    className="btn btn-outline-danger btn-sm" 
+                  <button
+                    className="btn btn-outline-danger btn-sm"
                     onClick={vaciarPedido}
                     disabled={pedido.length === 0}
                   >
@@ -523,7 +541,7 @@ export default function Pedido() {
 
           {/* Resumen del Pedido */}
           <div className="col-lg-4">
-            <div className="card card-soft sticky-top" style={{ top: '100px' }}>
+            <div className="card card-soft sticky-top" style={{ top: "100px" }}>
               <div className="card-body">
                 <div className="d-flex justify-content-between align-items-center">
                   <h5>Resumen del Pedido</h5>
@@ -561,7 +579,7 @@ export default function Pedido() {
                                 {item.toppings.length > 0 && (
                                   <div className="mt-1">
                                     <small className="text-info">
-                                      + {item.toppings.map(t => t.nombre).join(', ')}
+                                      + {item.toppings.map((t) => t.nombre).join(", ")}
                                     </small>
                                   </div>
                                 )}
@@ -580,8 +598,8 @@ export default function Pedido() {
                           </td>
                           <td className="text-end">{money(item.subtotal)}</td>
                           <td className="text-end">
-                            <button 
-                              className="btn btn-outline-danger btn-sm" 
+                            <button
+                              className="btn btn-outline-danger btn-sm"
                               onClick={() => quitarProducto(item.id)}
                               title="Eliminar del pedido"
                             >
@@ -670,12 +688,12 @@ export default function Pedido() {
                 </div>
 
                 <div className="mt-3 d-grid">
-                  <button 
-                    className="btn btn-success btn-lg" 
+                  <button
+                    className="btn btn-success btn-lg"
                     disabled={!pedido.length || !metodoPago}
                     onClick={cobrar}
                   >
-                    {pedido.length ? `Cobrar ${money(total)}` : 'Cobrar'}
+                    {pedido.length ? `Cobrar ${money(total)}` : "Cobrar"}
                   </button>
                 </div>
 
