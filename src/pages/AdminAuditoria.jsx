@@ -54,7 +54,7 @@ export default function AdminAuditoria() {
   async function cargarIngresosPorDia(d = fechaDesde, h = fechaHasta) {
     try {
       setMsgIngresos("Cargando ingresos...");
-      let url = "/api/facturas/ingresos-por-dia";
+      let url = `${import.meta.env.VITE_API_URL}/api/facturas/ingresos-por-dia`;
       const params = new URLSearchParams();
       if (d) params.append("fecha_desde", d);
       if (h) params.append("fecha_hasta", h);
@@ -92,7 +92,7 @@ export default function AdminAuditoria() {
   async function cargarAuditoria() {
     try {
       setMsgAuditoria("Cargando auditoría...");
-      const res = await fetch("/api/auditoria", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auditoria`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       
@@ -118,7 +118,7 @@ export default function AdminAuditoria() {
   // cargar ingresos de hoy
   async function cargarIngresosHoy() {
     try {
-      const res = await fetch("/api/auditoria/ingresos-hoy", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auditoria/ingresos-hoy`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       

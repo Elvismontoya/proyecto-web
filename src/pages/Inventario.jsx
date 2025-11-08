@@ -29,10 +29,10 @@ export default function Inventario() {
         setCargando(true);
         try {
             const [resInventario, resAlertas] = await Promise.all([
-                fetch("/api/inventario", {
+                fetch(`${import.meta.env.VITE_API_URL}/api/inventario`, {
                     headers: { Authorization: `Bearer ${getToken()}` },
                 }),
-                fetch("/api/inventario/alertas", {
+                fetch(`${import.meta.env.VITE_API_URL}/api/inventario/alertas`, {
                     headers: { Authorization: `Bearer ${getToken()}` },
                 })
             ]);

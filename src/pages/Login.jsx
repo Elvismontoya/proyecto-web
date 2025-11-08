@@ -44,7 +44,7 @@ export default function Login() {
     // verificar si se necesita crear primer admin
     (async () => {
       try {
-        const res = await fetch("/api/auth/check-initial");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/check-initial`);
         const data = await res.json();
         if (data?.needsAdmin === true) {
           setShowRegister(true);
@@ -99,7 +99,7 @@ export default function Login() {
     setRegisterMsg({ text: "Creando administrador...", type: "muted" });
     setRegisterLoading(true);
     try {
-      const res = await fetch("/api/auth/register-admin", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register-admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

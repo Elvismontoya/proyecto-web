@@ -46,7 +46,7 @@ export default function AdminFacturas() {
   // cargar empleados
   async function cargarEmpleados() {
     try {
-      const res = await fetch("/api/empleados", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/empleados`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) {
@@ -62,7 +62,7 @@ export default function AdminFacturas() {
   async function cargarFacturas(fIni = fechaDesde, fFin = fechaHasta, emp = idEmpleado) {
     try {
       setMsgFacturas("Cargando facturas...");
-      let url = "/api/facturas";
+      let url = `${import.meta.env.VITE_API_URL}/api/facturas`;
       const params = new URLSearchParams();
       if (fIni) params.append("fecha_desde", fIni);
       if (fFin) params.append("fecha_hasta", fFin);
@@ -90,7 +90,7 @@ export default function AdminFacturas() {
   // ver detalle
   async function verDetalleFactura(idFactura) {
     try {
-      const res = await fetch(`/api/facturas/${idFactura}/detalle`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/facturas/${idFactura}/detalle`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error("Error cargando detalle");

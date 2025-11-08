@@ -44,13 +44,13 @@ export default function Pedido() {
     try {
       // Cargar categorías con productos
       const [resProductos, resTamanos, resToppings] = await Promise.all([
-        fetch("/api/productos", {
+        fetch(`${import.meta.env.VITE_API_URL}/api/productos`, {
           headers: { Authorization: `Bearer ${getToken()}` },
         }),
-        fetch("/api/tamanos", {
+        fetch(`${import.meta.env.VITE_API_URL}/api/tamanos`, {
           headers: { Authorization: `Bearer ${getToken()}` },
         }),
-        fetch("/api/toppings", {
+        fetch(`${import.meta.env.VITE_API_URL}/api/toppings`, {
           headers: { Authorization: `Bearer ${getToken()}` },
         })
       ]);
@@ -218,7 +218,7 @@ export default function Pedido() {
     };
 
     try {
-      const res = await fetch("/api/facturas", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/facturas`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

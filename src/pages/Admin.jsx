@@ -63,7 +63,7 @@ export default function Admin() {
   async function cargarProductos() {
     setMsgTabla("Cargando productos...");
     try {
-      const res = await fetch("/api/productos", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/productos`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) {
@@ -108,7 +108,7 @@ export default function Admin() {
 
   async function cargarCategorias() {
     try {
-      const res = await fetch("/api/categorias", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categorias`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) {
@@ -181,7 +181,7 @@ export default function Admin() {
     try {
       let res;
       if (editModeProducto) {
-        res = await fetch(`/api/productos/${formProducto.id}`, {
+        res = await fetch(`${import.meta.env.VITE_API_URL}/api/productos/${formProducto.id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -190,7 +190,7 @@ export default function Admin() {
           body: JSON.stringify(body),
         });
       } else {
-        res = await fetch("/api/productos", {
+        res = await fetch(`${import.meta.env.VITE_API_URL}/api/productos`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -218,7 +218,7 @@ export default function Admin() {
   async function eliminarProducto(id) {
     if (!confirm("¿Seguro que deseas eliminar este producto?")) return;
     try {
-      const res = await fetch(`/api/productos/${id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/productos/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${getToken()}` },
       });
@@ -277,7 +277,7 @@ export default function Admin() {
     try {
       let res;
       if (editModeCategoria) {
-        res = await fetch(`/api/categorias/${formCategoria.id}`, {
+        res = await fetch(`${import.meta.env.VITE_API_URL}/api/categorias/${formCategoria.id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -286,7 +286,7 @@ export default function Admin() {
           body: JSON.stringify(body),
         });
       } else {
-        res = await fetch("/api/categorias", {
+        res = await fetch(`${import.meta.env.VITE_API_URL}/api/categorias`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -314,7 +314,7 @@ export default function Admin() {
   async function eliminarCategoria(id) {
     if (!confirm("¿Seguro que deseas eliminar esta categoría? Los productos asociados quedarán sin categoría.")) return;
     try {
-      const res = await fetch(`/api/categorias/${id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categorias/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${getToken()}` },
       });
