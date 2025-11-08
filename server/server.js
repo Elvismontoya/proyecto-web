@@ -1,7 +1,7 @@
-// server/server.js
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+
 
 import authRouter from './routes/auth.js'
 import productosRouter from './routes/productos.js'
@@ -15,6 +15,13 @@ import inventarioRouter from './routes/inventario.js'
 
 const app = express()
 
+app.use(cors({
+  origin: ['http://localhost:5178', 'https://nixgelato.vercel.app'],
+  credentials: true,
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
+}));
+app.options('*', cors());
 
 app.use(express.json())
 

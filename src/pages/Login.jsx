@@ -75,6 +75,7 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario: usuario.trim(), password: password.trim() }),
       });
+      console.log(res);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setLoginMsg({ text: data.message || "Credenciales inválidas.", type: "danger" });
