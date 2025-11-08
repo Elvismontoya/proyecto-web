@@ -15,21 +15,6 @@ import inventarioRouter from './routes/inventario.js'
 
 const app = express()
 
-// --- CORS ---
-const isProd = process.env.NODE_ENV === 'production'
-const allowOrigin = "https://nixgelato.vercel.app/"; 
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!isProd) return cb(null, true) // en dev permite todo
-    if (!origin) return cb(null, true) // tools/healthchecks
-    if (allowOrigin && origin === allowOrigin) return cb(null, true)
-    return cb(new Error('CORS: origin no permitido'))
-  },
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
-  credentials: true
-}))
-app.options('*', (_, res) => res.sendStatus(204))
 
 app.use(express.json())
 
