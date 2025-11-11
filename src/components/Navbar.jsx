@@ -4,7 +4,7 @@ export default function Navbar() {
   return (
     <nav className="nav">
       <div className="container">
-        <Link to="/" className="brand">🍨 GelatoPro</Link>
+        <Link to="/" className="brand">🍨 NixGelato</Link>
         <div className="links">
           <Link to="/admin">Admin</Link>
           <Link to="/admin/auditoria">Auditoría</Link>

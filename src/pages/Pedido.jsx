@@ -250,7 +250,7 @@ export default function Pedido() {
         <nav className="navbar navbar-expand-lg border-bottom sticky-top">
           <div className="container">
             <Link className="navbar-brand fw-semibold" to="/">
-              🍨 GelatoPro
+              🍨 NixGelato
             </Link>
           </div>
         </nav>
@@ -272,7 +272,7 @@ export default function Pedido() {
       <nav className="navbar navbar-expand-lg border-bottom sticky-top">
         <div className="container">
           <Link className="navbar-brand fw-semibold" to="/">
-            🍨 GelatoPro - Caja
+            🍨 NixGelato - Caja
           </Link>
           <button className="btn btn-sm btn-outline-secondary ms-lg-3" onClick={() => navigate("/login")}>
             Cerrar turno

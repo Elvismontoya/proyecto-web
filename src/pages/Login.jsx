@@ -128,7 +128,7 @@ export default function Login() {
       {/* NAV */}
       <nav className="navbar navbar-expand-lg border-bottom sticky-top">
         <div className="container">
-          <Link className="navbar-brand fw-semibold" to="/">🍨 GelatoPro</Link>
+          <Link className="navbar-brand fw-semibold" to="/">🍨 NixGelato</Link>
         </div>
       </nav>
 
@@ -274,7 +274,7 @@ export default function Login() {
       {/* FOOTER */}
       <footer className="py-4 border-top">
         <div className="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-          <Link to="/">&copy; GelatoPro</Link>
+          <Link to="/">&copy; NixGelato</Link>
           <p className="mb-0">Desarrollado por Elvis Montoya y Juan Hernandez</p>
           <div className="d-flex gap-4">
             <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a>
