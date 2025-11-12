@@ -126,9 +126,8 @@ export default function Login() {
       {/* NAV */}
       <nav className="navbar navbar-expand-lg border-bottom sticky-top">
         <div className="container">
-          <Link className="navbar-brand fw-bold fs-3" to="/">
-            <span className="text-gradient">🍨 NixGelato</span>
-          </Link>
+          <Link className="navbar-brand fw-semibold" to="/">🍨 NixGelato</Link>
+          <Link className="btn btn-sm btn-brand ms-lg-3" to="/login">Iniciar sesión</Link>
         </div>
       </nav>
 
@@ -191,29 +190,6 @@ export default function Login() {
                     <p className="text-muted">Accede a tu cuenta</p>
                   </div>
 
-                  {/* Tabs minimalistas */}
-                  <div className="mb-4">
-                    <div className="d-flex bg-light rounded-lg p-1">
-                      <button
-                        type="button"
-                        className={`btn flex-fill ${tab === "login" ? "btn-brand shadow-sm" : "btn-outline-brand border-0"}`}
-                        style={{ borderRadius: "0.5rem", padding: "0.75rem" }}
-                        onClick={() => setTab("login")}
-                      >
-                        Iniciar sesión
-                      </button>
-                      {showRegister && (
-                        <button
-                          type="button"
-                          className={`btn flex-fill ms-1 ${tab === "register" ? "btn-brand shadow-sm" : "btn-outline-brand border-0"}`}
-                          style={{ borderRadius: "0.5rem", padding: "0.75rem" }}
-                          onClick={() => setTab("register")}
-                        >
-                          Registrar admin
-                        </button>
-                      )}
-                    </div>
-                  </div>
 
                   {/* Login */}
                   {tab === "login" && (
@@ -240,7 +216,7 @@ export default function Login() {
                         <label className="form-label fw-semibold">Contraseña</label>
                         <div className="input-group input-group-lg">
                           <span className="input-group-text bg-transparent border-end-0">
-                            {showPass ? "🙈" : "🔒"}
+                            {showPass ? "🔒" : "🔒"}
                           </span>
                           <input
                             type={showPass ? "text" : "password"}
@@ -251,14 +227,6 @@ export default function Login() {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                           />
-                          <button
-                            type="button"
-                            className="btn btn-outline-brand border-start-0"
-                            onClick={() => setShowPass((v) => !v)}
-                            aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
-                          >
-                            {showPass ? "Ocultar" : "Mostrar"}
-                          </button>
                         </div>
                         <div className="form-text text-end">¿Olvidaste tu contraseña?</div>
                       </div>
@@ -275,7 +243,7 @@ export default function Login() {
                               Ingresando...
                             </>
                           ) : (
-                            "Entrar al sistema"
+                            "Iniciar Sesión"
                           )}
                         </button>
                       </div>
@@ -381,14 +349,6 @@ export default function Login() {
                     </form>
                   )}
                 </div>
-              </div>
-
-              {/* Información adicional */}
-              <div className="text-center mt-4">
-                <small className="text-muted">
-                  ¿Problemas para acceder?{" "}
-                  <a href="#" className="text-decoration-none fw-semibold text-gradient">Contactar soporte</a>
-                </small>
               </div>
             </div>
           </div>
