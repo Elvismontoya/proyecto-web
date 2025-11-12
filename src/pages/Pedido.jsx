@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const money = (n) =>
@@ -22,7 +22,7 @@ export default function Pedido() {
   const [metodoPago, setMetodoPago] = useState("");
   const [metodosPago, setMetodosPago] = useState([]);
 
-  // Estados para el flujo de selección
+  // Flujo
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [tamanoSeleccionado, setTamanoSeleccionado] = useState(null);
   const [toppingsSeleccionados, setToppingsSeleccionados] = useState([]);
@@ -42,7 +42,6 @@ export default function Pedido() {
   async function cargarDatos() {
     setCargando(true);
     try {
-      // Cargar categorías con productos
       const [resProductos, resTamanos, resToppings] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL}/api/productos`, {
           headers: { Authorization: `Bearer ${getToken()}` },
@@ -52,7 +51,7 @@ export default function Pedido() {
         }),
         fetch(`${import.meta.env.VITE_API_URL}/api/toppings`, {
           headers: { Authorization: `Bearer ${getToken()}` },
-        })
+        }),
       ]);
 
       if (!resProductos.ok || !resTamanos.ok || !resToppings.ok) {
@@ -66,7 +65,6 @@ export default function Pedido() {
       setCategorias(Array.isArray(dataProductos) ? dataProductos : []);
       setTamanos(Array.isArray(dataTamanos) ? dataTamanos : []);
       setToppings(Array.isArray(dataToppings) ? dataToppings : []);
-
     } catch (error) {
       console.error("Error cargando datos:", error);
       alert("Error cargando los datos del sistema");
@@ -75,7 +73,6 @@ export default function Pedido() {
     }
   }
 
-  // Cargar métodos de pago
   function cargarMetodosPago() {
     const fake = [
       { id: 1, nombre_metodo: "Efectivo", description: "Pago en caja", activo: true },
@@ -91,7 +88,7 @@ export default function Pedido() {
   }, []);
 
   // =========================
-  // Manejo del flujo de selección
+  // Manejo de selección
   // =========================
   function seleccionarProducto(producto) {
     if (producto.stock <= 0) {
@@ -108,25 +105,18 @@ export default function Pedido() {
   }
 
   function toggleTopping(topping) {
-    setToppingsSeleccionados(prev => {
-      const existe = prev.find(t => t.id_topping === topping.id_topping);
-      if (existe) {
-        return prev.filter(t => t.id_topping !== topping.id_topping);
-      } else {
-        return [...prev, topping];
-      }
+    setToppingsSeleccionados((prev) => {
+      const existe = prev.find((t) => t.id_topping === topping.id_topping);
+      return existe ? prev.filter((t) => t.id_topping !== topping.id_topping) : [...prev, topping];
     });
   }
 
-  function calcularPrecioFinal() {
+  const precioFinal = useMemo(() => {
     if (!productoSeleccionado || !tamanoSeleccionado) return 0;
-
-    let precioBase = productoSeleccionado.precio * tamanoSeleccionado.multiplicador;
-    const precioToppings = toppingsSeleccionados.reduce((sum, topping) => 
-      sum + topping.precio_adicional, 0);
-    
-    return Math.round(precioBase + precioToppings);
-  }
+    const base = productoSeleccionado.precio * tamanoSeleccionado.multiplicador;
+    const extra = toppingsSeleccionados.reduce((s, t) => s + t.precio_adicional, 0);
+    return Math.round(base + extra);
+  }, [productoSeleccionado, tamanoSeleccionado, toppingsSeleccionados]);
 
   function agregarAlPedido() {
     if (!productoSeleccionado || !tamanoSeleccionado) {
@@ -134,7 +124,6 @@ export default function Pedido() {
       return;
     }
 
-    const precioFinal = calcularPrecioFinal();
     const itemPedido = {
       id: `${productoSeleccionado.id}-${tamanoSeleccionado.id_tamano}-${Date.now()}`,
       producto: productoSeleccionado,
@@ -142,14 +131,12 @@ export default function Pedido() {
       toppings: [...toppingsSeleccionados],
       cantidad: 1,
       precioUnitario: precioFinal,
-      subtotal: precioFinal
+      subtotal: precioFinal,
     };
 
-    setPedido(prev => [...prev, itemPedido]);
+    setPedido((prev) => [...prev, itemPedido]);
     resetSeleccion();
-    
-    // Mostrar confirmación
-    alert(`✅ ${productoSeleccionado.nombre} (${tamanoSeleccionado.nombre}) agregado al pedido`);
+    alert(`✅ ${itemPedido.producto.nombre} (${itemPedido.tamano.nombre}) agregado al pedido`);
   }
 
   function resetSeleccion() {
@@ -159,7 +146,7 @@ export default function Pedido() {
   }
 
   // =========================
-  // Manejo del pedido existente
+  // Pedido existente
   // =========================
   function quitarProducto(id) {
     setPedido((prev) => prev.filter((i) => i.id !== id));
@@ -181,17 +168,16 @@ export default function Pedido() {
   }
 
   function vaciarPedido() {
-    if (pedido.length === 0) return;
-    if (confirm("¿Estás seguro de que quieres vaciar el pedido?")) {
-      setPedido([]);
-    }
+    if (!pedido.length) return;
+    if (confirm("¿Estás seguro de que quieres vaciar el pedido?")) setPedido([]);
   }
 
   // =========================
   // Cálculos
   // =========================
   const subtotal = pedido.reduce((sum, i) => sum + i.subtotal, 0);
-  const total = Math.max(subtotal - descuento, 0);
+  const descuentoNormalizado = Math.max(0, Math.min(descuento, subtotal)); // evita negativo
+  const total = Math.max(subtotal - descuentoNormalizado, 0);
   const cambio = Math.max(pago - total, 0);
 
   // =========================
@@ -205,7 +191,7 @@ export default function Pedido() {
     const payload = {
       cliente,
       subtotal,
-      descuento,
+      descuento: descuentoNormalizado,
       total,
       metodo_pago: metodoPago,
       productos: pedido.map((item) => ({
@@ -213,7 +199,7 @@ export default function Pedido() {
         cantidad: item.cantidad,
         precio: item.precioUnitario,
         tamano: item.tamano.nombre,
-        toppings: item.toppings.map(t => t.id_topping)
+        toppings: item.toppings.map((t) => t.id_topping),
       })),
     };
 
@@ -231,19 +217,21 @@ export default function Pedido() {
       if (!res.ok) throw new Error(data.message);
 
       alert(`✅ Factura #${data.id_factura} registrada correctamente`);
-      
-      // Resetear todo después de cobrar
+
+      // reset
       setPedido([]);
       setCliente("");
       setPago(0);
       setDescuento(0);
       setMetodoPago("");
-      
     } catch (err) {
       alert("❌ Error: " + err.message);
     }
   }
 
+  // =========================
+  // UI
+  // =========================
   if (cargando) {
     return (
       <>
@@ -272,72 +260,105 @@ export default function Pedido() {
       <nav className="navbar navbar-expand-lg border-bottom sticky-top">
         <div className="container">
           <Link className="navbar-brand fw-semibold" to="/">
-            🍨 NixGelato - Caja
+            🍨 NixGelato
           </Link>
-          <button className="btn btn-sm btn-outline-secondary ms-lg-3" onClick={() => navigate("/login")}>
-            Cerrar turno
-          </button>
+          <div className="d-flex gap-2">
+            <Link className="btn btn-sm btn-outline-brand" to="/admin">Admin</Link>
+            <button
+              className="btn btn-sm btn-outline-secondary"
+              onClick={() => navigate("/login")}
+            >
+              Cerrar turno
+            </button>
+          </div>
         </div>
       </nav>
 
       <main className="container my-4">
+        {/* Hero */}
         <div className="row g-4">
           {/* Constructor */}
           <div className="col-lg-8">
-            <div className="card card-soft mb-4">
+            <div className="card card-soft mb-4 fade-in">
               <div className="card-body">
-                <h5>Armar pedido</h5>
-                <span className="small text-muted">
-                  Paso 1: producto → Paso 2: tamaño → Paso 3: toppings (si aplica)
-                </span>
-                <hr />
+                <div className="d-flex justify-content-between align-items-center">
+                  <h5 className="mb-1">Armar pedido</h5>
+                  <span className="badge bg-primary">Flujo 3 pasos</span>
+                </div>
+                <p className="small text-muted mb-3">
+                  1. Producto → 2. Tamaño → 3. Toppings (si aplica)
+                </p>
 
-                {/* Paso 1: Selección de Producto por Categorías */}
+                {/* Paso 1: Producto por Categoría */}
                 {!productoSeleccionado && (
-                  <div>
+                  <div className="stagger-children">
                     <h6 className="mb-3">1. Elige un producto por categoría</h6>
                     {categorias.length === 0 ? (
                       <div className="alert alert-warning">
                         No hay productos disponibles. Contacta al administrador.
                       </div>
                     ) : (
-                      categorias.map(categoria => (
+                      categorias.map((categoria) => (
                         <div key={categoria.id} className="mb-4">
-                          <h6 className="text-primary mb-2 border-bottom pb-1">
-                            {categoria.nombre}
-                          </h6>
+                          <div className="d-flex align-items-center justify-content-between mb-2">
+                            <h6 className="text-primary mb-0">{categoria.nombre}</h6>
+                            <span className="badge bg-light text-dark">
+                              {categoria.productos?.length || 0} ítems
+                            </span>
+                          </div>
                           <div className="row g-3">
                             {categoria.productos.map((producto) => (
                               <div className="col-6 col-md-4 col-xl-3" key={producto.id}>
-                                <div 
-                                  className={`card h-100 ${producto.stock <= 0 ? 'opacity-50' : 'hover-lift'}`}
-                                  style={{ 
-                                    cursor: producto.stock > 0 ? 'pointer' : 'not-allowed',
-                                    transition: 'all 0.3s ease'
+                                <div
+                                  className={`card h-100 ${producto.stock <= 0 ? "opacity-50" : "hover-lift"}`}
+                                  style={{
+                                    cursor: producto.stock > 0 ? "pointer" : "not-allowed",
+                                    transition: "all 0.3s ease",
                                   }}
                                   onClick={() => seleccionarProducto(producto)}
                                 >
-                                  <img
-                                    src={producto.img || '/placeholder-image.jpg'}
-                                    alt={producto.nombre}
-                                    className="card-img-top"
-                                    style={{ 
-                                      objectFit: "cover", 
-                                      height: 110,
-                                      backgroundColor: '#f8f9fa'
-                                    }}
-                                    onError={(e) => {
-                                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjExMCIgdmlld0JveD0iMCAwIDIwMCAxMTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTEwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik04MCA1NUw3MCA0NUg2MEw1MCA1NUw2MCA2NUg3MEw4MCA1NVoiIGZpbGw9IiNENkQ2RDYiLz4KPHN2Zz4K';
-                                    }}
-                                  />
+                                  <div style={{ position: "relative" }}>
+                                    {producto.stock <= 0 && (
+                                      <span
+                                        className="badge bg-danger"
+                                        style={{ position: "absolute", top: 8, left: 8 }}
+                                      >
+                                        Sin stock
+                                      </span>
+                                    )}
+                                    <img
+                                      src={producto.img || "/placeholder-image.jpg"}
+                                      alt={producto.nombre}
+                                      className="card-img-top"
+                                      style={{
+                                        objectFit: "cover",
+                                        height: 120,
+                                        backgroundColor: "#f8f9fa",
+                                      }}
+                                      onError={(e) => {
+                                        e.currentTarget.src =
+                                          "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjExMCIgdmlld0JveD0iMCAwIDIwMCAxMTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTEwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik04MCA1NUw3MCA0NUg2MEw1MCA1NUw2MCA2NUg3MEw4MCA1NVoiIGZpbGw9IiNENkQ2RDYiLz4KPC9zdmc+";
+                                      }}
+                                    />
+                                  </div>
                                   <div className="card-body p-2 d-flex flex-column">
                                     <div className="fw-semibold small">{producto.nombre}</div>
                                     <div className="small text-muted">{money(producto.precio)}</div>
-                                    <div className={`small ${producto.stock > 0 ? "text-success" : "text-danger"}`}>
+                                    <div
+                                      className={`small ${
+                                        producto.stock > 10
+                                          ? "text-success"
+                                          : producto.stock > 0
+                                          ? "text-warning"
+                                          : "text-danger"
+                                      }`}
+                                    >
                                       Stock: {producto.stock}
                                     </div>
                                     {producto.permiteToppings && (
-                                      <span className="badge bg-info mt-1 small">Incluye toppings</span>
+                                      <span className="badge bg-info mt-1 small">
+                                        Permite toppings
+                                      </span>
                                     )}
                                   </div>
                                 </div>
@@ -350,19 +371,18 @@ export default function Pedido() {
                   </div>
                 )}
 
-                {/* Paso 2: Selección de Tamaño */}
+                {/* Paso 2: Tamaño */}
                 {productoSeleccionado && !tamanoSeleccionado && (
-                  <div>
+                  <div className="fade-in">
                     <div className="d-flex align-items-center mb-3">
-                      <button 
-                        className="btn btn-sm btn-outline-secondary me-2"
-                        onClick={resetSeleccion}
-                      >
+                      <button className="btn btn-sm btn-outline-secondary me-2" onClick={resetSeleccion}>
                         ← Volver
                       </button>
-                      <h6 className="mb-0">2. Elige el tamaño para: <strong>{productoSeleccionado.nombre}</strong></h6>
+                      <h6 className="mb-0">
+                        2. Elige el tamaño para: <strong>{productoSeleccionado.nombre}</strong>
+                      </h6>
                     </div>
-                    
+
                     <div className="row g-3">
                       {tamanos.length === 0 ? (
                         <div className="col-12">
@@ -371,11 +391,13 @@ export default function Pedido() {
                           </div>
                         </div>
                       ) : (
-                        tamanos.map(tamano => (
+                        tamanos.map((tamano) => (
                           <div className="col-6 col-md-4" key={tamano.id_tamano}>
-                            <div 
-                              className={`card text-center hover-lift ${tamanoSeleccionado?.id_tamano === tamano.id_tamano ? 'border-primary border-2' : ''}`}
-                              style={{ cursor: 'pointer' }}
+                            <div
+                              className={`card text-center hover-lift ${
+                                tamanoSeleccionado?.id_tamano === tamano.id_tamano ? "border-primary border-2" : ""
+                              }`}
+                              style={{ cursor: "pointer" }}
                               onClick={() => seleccionarTamano(tamano)}
                             >
                               <div className="card-body">
@@ -398,77 +420,87 @@ export default function Pedido() {
                   </div>
                 )}
 
-                {/* Paso 3: Selección de Toppings (si aplica) */}
-                {productoSeleccionado && tamanoSeleccionado && productoSeleccionado.permiteToppings && (
-                  <div>
-                    <div className="d-flex align-items-center mb-3">
-                      <button 
-                        className="btn btn-sm btn-outline-secondary me-2"
-                        onClick={() => setTamanoSeleccionado(null)}
-                      >
-                        ← Volver
-                      </button>
-                      <h6 className="mb-0">
-                        3. Elige toppings para: <strong>{productoSeleccionado.nombre}</strong> ({tamanoSeleccionado.nombre})
-                      </h6>
-                    </div>
+                {/* Paso 3: Toppings */}
+                {productoSeleccionado &&
+                  tamanoSeleccionado &&
+                  productoSeleccionado.permiteToppings && (
+                    <div className="fade-in">
+                      <div className="d-flex align-items-center mb-3">
+                        <button
+                          className="btn btn-sm btn-outline-secondary me-2"
+                          onClick={() => setTamanoSeleccionado(null)}
+                        >
+                          ← Volver
+                        </button>
+                        <h6 className="mb-0">
+                          3. Elige toppings para: <strong>{productoSeleccionado.nombre}</strong>{" "}
+                          ({tamanoSeleccionado.nombre})
+                        </h6>
+                      </div>
 
-                    <div className="row g-2 mb-3">
-                      {toppings.length === 0 ? (
-                        <div className="col-12">
-                          <div className="alert alert-info">
-                            No hay toppings disponibles. Continuar sin toppings.
-                          </div>
-                        </div>
-                      ) : (
-                        toppings.map(topping => (
-                          <div className="col-6 col-md-4 col-lg-3" key={topping.id_topping}>
-                            <div 
-                              className={`card text-center hover-lift ${toppingsSeleccionados.find(t => t.id_topping === topping.id_topping) ? 'border-success border-2 bg-light' : ''}`}
-                              style={{ cursor: 'pointer' }}
-                              onClick={() => toggleTopping(topping)}
-                            >
-                              <div className="card-body p-2">
-                                <h6 className="card-title small mb-1">{topping.nombre}</h6>
-                                <div className="text-success small">+{money(topping.precio_adicional)}</div>
-                              </div>
+                      <div className="row g-2 mb-3">
+                        {toppings.length === 0 ? (
+                          <div className="col-12">
+                            <div className="alert alert-info">
+                              No hay toppings disponibles. Continuar sin toppings.
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
-
-                    <div className="card bg-light">
-                      <div className="card-body">
-                        <div className="row align-items-center">
-                          <div className="col">
-                            <strong>Total del item:</strong> 
-                            <span className="fs-5 ms-2 text-success">{money(calcularPrecioFinal())}</span>
-                            {toppingsSeleccionados.length > 0 && (
-                              <div className="small text-muted mt-1">
-                                <strong>Toppings seleccionados:</strong> {toppingsSeleccionados.map(t => t.nombre).join(', ')}
+                        ) : (
+                          toppings.map((topping) => {
+                            const activo = !!toppingsSeleccionados.find(
+                              (t) => t.id_topping === topping.id_topping
+                            );
+                            return (
+                              <div className="col-6 col-md-4 col-lg-3" key={topping.id_topping}>
+                                <div
+                                  className={`card text-center hover-lift ${
+                                    activo ? "border-success border-2 bg-light" : ""
+                                  }`}
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => toggleTopping(topping)}
+                                >
+                                  <div className="card-body p-2">
+                                    <h6 className="card-title small mb-1">{topping.nombre}</h6>
+                                    <div className="text-success small">
+                                      +{money(topping.precio_adicional)}
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                          <div className="col-auto">
-                            <button 
-                              className="btn btn-success btn-lg"
-                              onClick={agregarAlPedido}
-                            >
-                              Agregar al Pedido
-                            </button>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="card bg-light">
+                        <div className="card-body">
+                          <div className="row align-items-center">
+                            <div className="col">
+                              <strong>Total del ítem:</strong>
+                              <span className="fs-5 ms-2 text-success">{money(precioFinal)}</span>
+                              {toppingsSeleccionados.length > 0 && (
+                                <div className="small text-muted mt-1">
+                                  <strong>Toppings:</strong>{" "}
+                                  {toppingsSeleccionados.map((t) => t.nombre).join(", ")}
+                                </div>
+                              )}
+                            </div>
+                            <div className="col-auto">
+                              <button className="btn btn-brand btn-lg" onClick={agregarAlPedido}>
+                                Agregar al pedido
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Si el producto no permite toppings, mostrar botón directo */}
+                {/* Si no permite toppings */}
                 {productoSeleccionado && tamanoSeleccionado && !productoSeleccionado.permiteToppings && (
-                  <div>
+                  <div className="fade-in">
                     <div className="d-flex align-items-center mb-3">
-                      <button 
+                      <button
                         className="btn btn-sm btn-outline-secondary me-2"
                         onClick={() => setTamanoSeleccionado(null)}
                       >
@@ -483,15 +515,12 @@ export default function Pedido() {
                       <div className="card-body">
                         <div className="row align-items-center">
                           <div className="col">
-                            <strong>Total del item:</strong> 
-                            <span className="fs-5 ms-2 text-success">{money(calcularPrecioFinal())}</span>
+                            <strong>Total del ítem:</strong>
+                            <span className="fs-5 ms-2 text-success">{money(precioFinal)}</span>
                           </div>
                           <div className="col-auto">
-                            <button 
-                              className="btn btn-success btn-lg"
-                              onClick={agregarAlPedido}
-                            >
-                              Agregar al Pedido
+                            <button className="btn btn-brand btn-lg" onClick={agregarAlPedido}>
+                              Agregar al pedido
                             </button>
                           </div>
                         </div>
@@ -500,12 +529,11 @@ export default function Pedido() {
                   </div>
                 )}
 
-                <hr />
-
                 {/* Acciones rápidas */}
+                <hr />
                 <div className="d-flex gap-2">
-                  <button 
-                    className="btn btn-outline-danger btn-sm" 
+                  <button
+                    className="btn btn-outline-danger btn-sm"
                     onClick={vaciarPedido}
                     disabled={pedido.length === 0}
                   >
@@ -523,18 +551,18 @@ export default function Pedido() {
 
           {/* Resumen del Pedido */}
           <div className="col-lg-4">
-            <div className="card card-soft sticky-top" style={{ top: '100px' }}>
+            <div className="card card-soft sticky-top fade-in" style={{ top: "100px" }}>
               <div className="card-body">
                 <div className="d-flex justify-content-between align-items-center">
-                  <h5>Resumen del Pedido</h5>
-                  <span className="badge text-bg-light">Ticket</span>
+                  <h5 className="mb-0">Resumen del pedido</h5>
+                  <span className="badge bg-light text-dark">Ticket</span>
                 </div>
 
                 <hr />
 
-                <div className="table-responsive">
+                <div className="table-responsive" style={{ maxHeight: 340 }}>
                   <table className="table align-middle">
-                    <thead>
+                    <thead style={{ position: "sticky", top: 0, background: "var(--white)", zIndex: 1 }}>
                       <tr>
                         <th>Producto</th>
                         <th className="text-center">Cant</th>
@@ -561,18 +589,17 @@ export default function Pedido() {
                                 {item.toppings.length > 0 && (
                                   <div className="mt-1">
                                     <small className="text-info">
-                                      + {item.toppings.map(t => t.nombre).join(', ')}
+                                      + {item.toppings.map((t) => t.nombre).join(", ")}
                                     </small>
                                   </div>
                                 )}
                               </div>
                             </div>
                           </td>
-                          <td className="text-center">
+                          <td className="text-center" style={{ minWidth: 80 }}>
                             <input
                               type="number"
                               className="form-control form-control-sm text-center"
-                              style={{ width: 60 }}
                               value={item.cantidad}
                               min={1}
                               onChange={(e) => cambiarCantidad(item.id, e.target.value)}
@@ -580,8 +607,8 @@ export default function Pedido() {
                           </td>
                           <td className="text-end">{money(item.subtotal)}</td>
                           <td className="text-end">
-                            <button 
-                              className="btn btn-outline-danger btn-sm" 
+                            <button
+                              className="btn btn-outline-danger btn-sm"
                               onClick={() => quitarProducto(item.id)}
                               title="Eliminar del pedido"
                             >
@@ -606,9 +633,10 @@ export default function Pedido() {
                     <input
                       type="number"
                       className="form-control form-control-sm"
-                      style={{ width: 100 }}
+                      style={{ width: 110 }}
                       value={descuento}
                       min={0}
+                      max={subtotal}
                       onChange={(e) => setDescuento(Number(e.target.value))}
                     />
                   </div>
@@ -670,12 +698,12 @@ export default function Pedido() {
                 </div>
 
                 <div className="mt-3 d-grid">
-                  <button 
-                    className="btn btn-success btn-lg" 
+                  <button
+                    className="btn btn-brand btn-lg"
                     disabled={!pedido.length || !metodoPago}
                     onClick={cobrar}
                   >
-                    {pedido.length ? `Cobrar ${money(total)}` : 'Cobrar'}
+                    {pedido.length ? `Cobrar ${money(total)}` : "Cobrar"}
                   </button>
                 </div>
 

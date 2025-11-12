@@ -25,11 +25,14 @@ export default function AdminFacturas() {
   const [facturas, setFacturas] = useState([]);
   const [msgFacturas, setMsgFacturas] = useState("Cargando facturas...");
 
+  // Loading simple
+  const [cargando, setCargando] = useState(true);
+
   // Modal detalle
   const [showModal, setShowModal] = useState(false);
   const [detalle, setDetalle] = useState(null); // { factura, productos }
 
-  // auth
+  // ===== Auth =====
   useEffect(() => {
     const token = localStorage.getItem("token");
     const rol = localStorage.getItem("rol");
@@ -43,7 +46,7 @@ export default function AdminFacturas() {
     navigate("/login", { replace: true });
   }
 
-  // cargar empleados
+  // ===== Fetchers =====
   async function cargarEmpleados() {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/empleados`, {
@@ -58,10 +61,11 @@ export default function AdminFacturas() {
     }
   }
 
-  // cargar facturas
   async function cargarFacturas(fIni = fechaDesde, fFin = fechaHasta, emp = idEmpleado) {
     try {
       setMsgFacturas("Cargando facturas...");
+      setCargando(true);
+
       let url = `${import.meta.env.VITE_API_URL}/api/facturas`;
       const params = new URLSearchParams();
       if (fIni) params.append("fecha_desde", fIni);
@@ -84,10 +88,11 @@ export default function AdminFacturas() {
       console.error("Error cargando facturas:", e);
       setFacturas([]);
       setMsgFacturas("Error cargando facturas.");
+    } finally {
+      setCargando(false);
     }
   }
 
-  // ver detalle
   async function verDetalleFactura(idFactura) {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/facturas/${idFactura}/detalle`, {
@@ -103,16 +108,58 @@ export default function AdminFacturas() {
     }
   }
 
-  // init
+  // Init
   useEffect(() => {
     cargarEmpleados();
     cargarFacturas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ===== Acciones UI =====
   function aplicarFiltros() {
     cargarFacturas(fechaDesde, fechaHasta, idEmpleado);
   }
+
+  function exportCSV() {
+    if (!facturas.length) return;
+    const rows = facturas.map((f) => ({
+      id_factura: f.id_factura,
+      fecha_hora: f.fecha_hora,
+      empleado: f.empleado_nombres ?? "",
+      cliente: f.observaciones ?? "",
+      subtotal: f.total_bruto ?? 0,
+      descuento: f.descuento_total ?? 0,
+      total: f.total_neto ?? 0,
+    }));
+
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) =>
+        headers.map((h) => `"${String(r[h] ?? "").replaceAll('"', '""')}"`).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `facturas_${fechaDesde}_a_${fechaHasta}${idEmpleado ? `_emp-${idEmpleado}` : ""}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ===== KPIs =====
+  const kpis = useMemo(() => {
+    const totalFacturas = facturas.length;
+    const subtotalBruto = facturas.reduce((s, f) => s + Number(f.total_bruto || 0), 0);
+    const descuentos = facturas.reduce((s, f) => s + Number(f.descuento_total || 0), 0);
+    const totalNeto = facturas.reduce((s, f) => s + Number(f.total_neto || 0), 0);
+    const promedioFactura = totalFacturas ? totalNeto / totalFacturas : 0;
+    return { totalFacturas, subtotalBruto, descuentos, totalNeto, promedioFactura };
+  }, [facturas]);
 
   return (
     <>
@@ -134,11 +181,58 @@ export default function AdminFacturas() {
       <main className="container my-4">
         {/* Encabezado */}
         <section className="hero mb-4 text-center">
-          <h1 className="display-6 fw-bold mb-2">Gestión de Facturas</h1>
-          <p className="lead mb-0">Consulta y gestiona todas las facturas del sistema.</p>
+          <div className="hero-content">
+            <h1 className="display-6 fw-bold mb-2">Gestión de Facturas</h1>
+            <p className="lead mb-0">Consulta y gestiona todas las facturas del sistema.</p>
+          </div>
         </section>
 
-        {/* Filtros */}
+        {/* KPIs / Resumen */}
+        <section className="mb-4 fade-in">
+          <div className="row g-3">
+            <div className="col-12 col-md-3">
+              <div className="card card-soft h-100">
+                <div className="card-body text-center">
+                  <div className="text-muted">Total facturas</div>
+                  <div className="h4 fw-bold text-gradient mt-1">{kpis.totalFacturas}</div>
+                  <small className="text-muted">Rango seleccionado</small>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 col-md-3">
+              <div className="card card-soft h-100">
+                <div className="card-body text-center">
+                  <div className="text-muted">Ingresos netos</div>
+                  <div className="h4 fw-bold text-gradient mt-1">{money(kpis.totalNeto)}</div>
+                  <small className="text-muted">Total cobrado</small>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 col-md-3">
+              <div className="card card-soft h-100">
+                <div className="card-body text-center">
+                  <div className="text-muted">Subtotal bruto</div>
+                  <div className="h4 fw-bold text-gradient mt-1">{money(kpis.subtotalBruto)}</div>
+                  <small className="text-muted">Antes de descuentos</small>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 col-md-3">
+              <div className="card card-soft h-100">
+                <div className="card-body text-center">
+                  <div className="text-muted">Promedio por factura</div>
+                  <div className="h4 fw-bold text-gradient mt-1">{money(kpis.promedioFactura)}</div>
+                  <small className="text-muted">Ticket medio</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Filtros (idénticos a tu versión) */}
         <div className="card card-soft mb-4">
           <div className="card-body">
             <h5 className="mb-3">Filtros</h5>
@@ -185,15 +279,24 @@ export default function AdminFacturas() {
           </div>
         </div>
 
-        {/* Lista de facturas */}
-        <div className="card card-soft">
+        {/* Tabla de facturas */}
+        <section className="card card-soft fade-in">
           <div className="card-body">
-            <h5 className="mb-3">Facturas Registradas</h5>
-            <div className="table-responsive">
-              <table className="table align-middle" id="tablaFacturas">
-                <thead>
+            <div className="d-flex flex-wrap justify-content-between align-items-center mb-3">
+              <div className="d-flex align-items-center gap-2">
+                <h5 className="mb-0">Facturas registradas</h5>
+                <span className="badge bg-info">{facturas.length}</span>
+              </div>
+              <div className="d-flex gap-2">
+                <button className="btn btn-sm btn-outline-brand" onClick={exportCSV}>⬇️ Exportar CSV</button>
+              </div>
+            </div>
+
+            <div className="table-responsive" style={{ maxHeight: 560 }}>
+              <table className="table table-striped table-hover align-middle">
+                <thead style={{ position: "sticky", top: 0, background: "var(--white)", zIndex: 1 }}>
                   <tr>
-                    <th>ID Factura</th>
+                    <th>ID</th>
                     <th>Fecha/Hora</th>
                     <th>Empleado</th>
                     <th>Cliente</th>
@@ -204,10 +307,18 @@ export default function AdminFacturas() {
                   </tr>
                 </thead>
                 <tbody>
-                  {facturas.length === 0 ? (
+                  {cargando ? (
+                    Array.from({ length: 7 }).map((_, i) => (
+                      <tr key={`sk-${i}`}>
+                        <td colSpan={8}>
+                          <div className="placeholder-wave"><span className="placeholder col-12" /></div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : facturas.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center text-muted">
-                        No hay facturas registradas
+                      <td colSpan={8} className="text-center text-muted py-5">
+                        😶‍🌫️ No hay facturas registradas en el rango seleccionado
                       </td>
                     </tr>
                   ) : (
@@ -215,14 +326,14 @@ export default function AdminFacturas() {
                       <tr key={f.id_factura}>
                         <td>#{f.id_factura}</td>
                         <td>{new Date(f.fecha_hora).toLocaleString("es-CO")}</td>
-                        <td>{f.empleado_nombres || "N/A"}</td>
+                        <td><span className="badge bg-light text-dark">{f.empleado_nombres || "N/A"}</span></td>
                         <td>{f.observaciones || "Cliente no registrado"}</td>
                         <td className="text-end">{money(f.total_bruto)}</td>
-                        <td className="text-end">{money(f.descuento_total)}</td>
-                        <td className="text-end fw-semibold">{money(f.total_neto)}</td>
+                        <td className="text-end text-danger">{money(f.descuento_total)}</td>
+                        <td className="text-end fw-semibold text-success">{money(f.total_neto)}</td>
                         <td className="text-end">
                           <button
-                            className="btn btn-sm btn-outline-primary"
+                            className="btn btn-sm btn-outline-brand"
                             onClick={() => verDetalleFactura(f.id_factura)}
                           >
                             Ver detalle
@@ -234,22 +345,23 @@ export default function AdminFacturas() {
                 </tbody>
               </table>
             </div>
+
             <p className="small text-muted mt-2 mb-0" id="msgFacturas">
               {msgFacturas}
             </p>
           </div>
-        </div>
+        </section>
       </main>
 
-      {/* Modal Detalle (controlado por estado, sin JS de Bootstrap) */}
+      {/* Modal Detalle */}
       {showModal && detalle && (
         <>
           <div className="modal fade show d-block" tabIndex="-1" role="dialog">
-            <div className="modal-dialog modal-lg" role="document">
-              <div className="modal-content">
-                <div className="modal-header">
+            <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
+              <div className="modal-content shadow-lg border-0">
+                <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--sky), var(--aqua))", color: "#000" }}>
                   <h5 className="modal-title">
-                    Detalle de Factura #{detalle.factura?.id_factura}
+                    Factura #{detalle.factura?.id_factura}
                   </h5>
                   <button
                     type="button"
@@ -262,25 +374,23 @@ export default function AdminFacturas() {
                   <div className="row mb-3">
                     <div className="col-md-6">
                       <strong>Fecha:</strong>{" "}
-                      <span>
-                        {new Date(detalle.factura?.fecha_hora).toLocaleString("es-CO")}
-                      </span>
-                      <br />
+                      {new Date(detalle.factura?.fecha_hora).toLocaleString("es-CO")} <br />
                       <strong>Empleado:</strong>{" "}
-                      <span>{detalle.factura?.empleado_nombres || "N/A"}</span>
+                      {detalle.factura?.empleado_nombres || "N/A"}
                     </div>
                     <div className="col-md-6">
                       <strong>Cliente:</strong>{" "}
-                      <span>{detalle.factura?.observaciones || "Cliente no registrado"}</span>
-                      <br />
+                      {detalle.factura?.observaciones || "Cliente no registrado"} <br />
                       <strong>Total:</strong>{" "}
-                      <span>{money(detalle.factura?.total_neto)}</span>
+                      <span className="fw-semibold text-success">
+                        {money(detalle.factura?.total_neto)}
+                      </span>
                     </div>
                   </div>
 
-                  <h6>Productos:</h6>
+                  <h6 className="mb-2">Productos</h6>
                   <div className="table-responsive">
-                    <table className="table table-sm" id="tablaDetalleProductos">
+                    <table className="table table-sm table-hover" id="tablaDetalleProductos">
                       <thead>
                         <tr>
                           <th>Producto</th>
@@ -296,12 +406,12 @@ export default function AdminFacturas() {
                               <td>{p.nombre_producto || `Producto ${p.id_producto}`}</td>
                               <td className="text-center">{p.cantidad}</td>
                               <td className="text-end">{money(p.precio_unitario_venta)}</td>
-                              <td className="text-end">{money(p.subtotal_linea)}</td>
+                              <td className="text-end fw-semibold">{money(p.subtotal_linea)}</td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={4} className="text-center text-muted">
+                            <td colSpan={4} className="text-center text-muted py-4">
                               Sin productos
                             </td>
                           </tr>
@@ -327,13 +437,28 @@ export default function AdminFacturas() {
         </>
       )}
 
-      <footer className="py-4 border-top">
-        <div className="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-          <Link to="/">&copy; NixGelato</Link>
-          <p className="mb-0">Desarrollado por Elvis Montoya y Juan Hernandez</p>
-          <div className="d-flex gap-4">
-            <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a>
-            <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>
+      {/* FOOTER */}
+      <footer className="py-4 border-top mt-5">
+        <div className="container">
+          <div className="row align-items-center">
+            <div className="col-md-4 text-center text-md-start mb-2 mb-md-0">
+              <Link to="/" className="text-decoration-none fw-bold text-gradient">
+                &copy; 2024 NixGelato
+              </Link>
+            </div>
+            <div className="col-md-4 text-center mb-2 mb-md-0">
+              <p className="mb-0 text-muted">Desarrollado por Elvis Montoya y Juan Hernandez</p>
+            </div>
+            <div className="col-md-4 text-center text-md-end">
+              <div className="d-flex justify-content-center justify-content-md-end gap-4">
+                <a href="https://www.instagram.com/" target="_blank" rel="noreferrer" className="text-decoration-none text-muted hover-lift">
+                  Instagram
+                </a>
+                <a href="https://www.facebook.com/" target="_blank" rel="noreferrer" className="text-decoration-none text-muted hover-lift">
+                  Facebook
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </footer>

@@ -9,7 +9,9 @@ const getToken = () => localStorage.getItem("token") || "";
 export default function Admin() {
   const navigate = useNavigate();
 
-  // auth check
+  // =========================
+  // Auth check
+  // =========================
   useEffect(() => {
     const token = localStorage.getItem("token");
     const rol = localStorage.getItem("rol");
@@ -31,8 +33,19 @@ export default function Admin() {
   const [msgTabla, setMsgTabla] = useState("Cargando productos...");
   const [activeTab, setActiveTab] = useState("productos");
 
+  const [loadingProductos, setLoadingProductos] = useState(true);
+  const [loadingCategorias, setLoadingCategorias] = useState(true);
+
   // =========================
-  // Estados para formulario de productos
+  // Estados UI: filtros/orden
+  // =========================
+  const [q, setQ] = useState("");
+  const [filterCat, setFilterCat] = useState("");
+  const [onlyToppings, setOnlyToppings] = useState(false);
+  const [sortBy, setSortBy] = useState("nombre-asc");
+
+  // =========================
+  // Estados formulario productos
   // =========================
   const [formProducto, setFormProducto] = useState({
     id: "",
@@ -47,7 +60,7 @@ export default function Admin() {
   const editModeProducto = useMemo(() => !!formProducto.id, [formProducto.id]);
 
   // =========================
-  // Estados para formulario de categorías
+  // Estados formulario categorías
   // =========================
   const [formCategoria, setFormCategoria] = useState({
     id: "",
@@ -61,6 +74,7 @@ export default function Admin() {
   // Cargar datos
   // =========================
   async function cargarProductos() {
+    setLoadingProductos(true);
     setMsgTabla("Cargando productos...");
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/productos`, {
@@ -72,8 +86,8 @@ export default function Admin() {
         return;
       }
       const data = await res.json();
-      
-      // Transformar los datos para que sean compatibles con el frontend
+
+      // Transformar: backend -> frontend (aplanar categorías con sus productos)
       const productosTransformados = transformarProductos(data);
       setProductos(Array.isArray(productosTransformados) ? productosTransformados : []);
       setMsgTabla(
@@ -85,14 +99,14 @@ export default function Admin() {
       console.error("Error cargando productos", e);
       setMsgTabla("Error cargando productos.");
       setProductos([]);
+    } finally {
+      setLoadingProductos(false);
     }
   }
 
-  // Función para transformar los productos del backend al formato del frontend
   function transformarProductos(data) {
     if (!Array.isArray(data)) return [];
-    
-    return data.flatMap(categoria => 
+    return data.flatMap(categoria =>
       categoria.productos?.map(producto => ({
         id: producto.id,
         nombre: producto.nombre,
@@ -107,6 +121,7 @@ export default function Admin() {
   }
 
   async function cargarCategorias() {
+    setLoadingCategorias(true);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categorias`, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -114,10 +129,14 @@ export default function Admin() {
       if (res.ok) {
         const data = await res.json();
         setCategorias(Array.isArray(data) ? data : []);
+      } else {
+        setCategorias([]);
       }
     } catch (e) {
       console.error("Error cargando categorías", e);
       setCategorias([]);
+    } finally {
+      setLoadingCategorias(false);
     }
   }
 
@@ -127,7 +146,44 @@ export default function Admin() {
   }, []);
 
   // =========================
-  // Handlers para Productos
+  // Métricas (hero stats)
+  // =========================
+  const totalProductos = productos.length;
+  const totalCategorias = categorias.length;
+  const bajoStock = useMemo(() => productos.filter(p => Number(p.stock) <= 10).length, [productos]);
+
+  // =========================
+  // Filtro + orden de productos
+  // =========================
+  const productosFiltrados = useMemo(() => {
+    let list = [...productos];
+
+    if (q.trim()) {
+      const s = q.trim().toLowerCase();
+      list = list.filter(p =>
+        p.nombre?.toLowerCase().includes(s) ||
+        p.categoria?.toLowerCase().includes(s) ||
+        String(p.id)?.includes(s)
+      );
+    }
+
+    if (filterCat) list = list.filter(p => String(p.id_categoria) === String(filterCat));
+    if (onlyToppings) list = list.filter(p => !!p.permiteToppings);
+
+    const [key, dir] = sortBy.split("-");
+    list.sort((a, b) => {
+      const asc = dir === "asc" ? 1 : -1;
+      if (key === "nombre") return a.nombre.localeCompare(b.nombre) * asc;
+      if (key === "precio") return (Number(a.precio) - Number(b.precio)) * asc;
+      if (key === "stock") return (Number(a.stock) - Number(b.stock)) * asc;
+      return 0;
+    });
+
+    return list;
+  }, [productos, q, filterCat, onlyToppings, sortBy]);
+
+  // =========================
+  // Handlers Productos
   // =========================
   function onChangeProducto(e) {
     const { name, value } = e.target;
@@ -145,6 +201,7 @@ export default function Admin() {
       id_categoria: p.id_categoria || ""
     });
     setMsgFormProducto({ text: "", type: "muted" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetFormProducto() {
@@ -235,7 +292,7 @@ export default function Admin() {
   }
 
   // =========================
-  // Handlers para Categorías
+  // Handlers Categorías
   // =========================
   function onChangeCategoria(e) {
     const { name, value } = e.target;
@@ -249,6 +306,7 @@ export default function Admin() {
       descripcion: cat.descripcion || ""
     });
     setMsgFormCategoria({ text: "", type: "muted" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetFormCategoria() {
@@ -305,6 +363,7 @@ export default function Admin() {
       setMsgFormCategoria({ text: "Categoría guardada correctamente.", type: "success" });
       resetFormCategoria();
       await cargarCategorias();
+      await cargarProductos(); // refrescar contador de productos por categoría
     } catch (e) {
       console.error(e);
       setMsgFormCategoria({ text: "Error al conectar con el servidor.", type: "danger" });
@@ -339,7 +398,7 @@ export default function Admin() {
       {/* Navbar */}
       <nav className="navbar navbar-expand-lg border-bottom sticky-top">
         <div className="container">
-          <Link className="navbar-brand fw-semibold" to="/">🍨 NixGelato</Link>
+          <Link className="navbar-brand fw-bold" to="/">🍨 NixGelato</Link>
           <div className="d-flex flex-wrap gap-2">
             <Link className="btn btn-sm btn-outline-brand" to="/pedido">Caja / Pedido</Link>
             <Link className="btn btn-sm btn-brand" to="/admin">Productos</Link>
@@ -352,13 +411,36 @@ export default function Admin() {
       </nav>
 
       <main className="container my-4">
-        {/* Encabezado */}
-        <section className="hero mb-4 text-center">
-          <h1 className="display-6 fw-bold mb-2">Panel administrador</h1>
-          <p className="lead mb-0">Gestiona productos y categorías del catálogo.</p>
+        {/* Hero con métricas */}
+        <section className="hero mb-4 text-center fade-in">
+          <div className="hero-content">
+            <h1 className="display-6 fw-bold mb-2">Panel administrador</h1>
+            <p className="lead mb-4">Gestiona productos y categorías del catálogo.</p>
+          </div>
         </section>
 
-        {/* Tabs de navegación */}
+        <div className="mb-4 row g-3 justify-content-center stagger-children">
+              <div className="col-12 col-md-4">
+                <div className="card-soft text-center p-3">
+                  <div className="text-muted">Productos</div>
+                  <div className="h3 fw-bold text-gradient mt-1">{totalProductos}</div>
+                </div>
+              </div>
+              <div className="col-12 col-md-4">
+                <div className="card-soft text-center p-3">
+                  <div className="text-muted">Categorías</div>
+                  <div className="h3 fw-bold text-gradient mt-1">{totalCategorias}</div>
+                </div>
+              </div>
+              <div className="col-12 col-md-4">
+                <div className="card-soft text-center p-3">
+                  <div className="text-muted">Bajo stock (≤10)</div>
+                  <div className="h3 fw-bold text-gradient mt-1">{bajoStock}</div>
+                </div>
+              </div>
+            </div>
+
+        {/* Tabs */}
         <div className="card card-soft mb-4">
           <div className="card-body">
             <ul className="nav nav-tabs">
@@ -382,10 +464,10 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Contenido de Productos */}
+        {/* CONTENIDO: PRODUCTOS */}
         {activeTab === "productos" && (
-          <div className="row g-4">
-            {/* Formulario Crear/Editar Producto */}
+          <div className="row g-4 fade-in">
+            {/* Formulario */}
             <div className="col-lg-4">
               <div className="card card-soft h-100">
                 <div className="card-body">
@@ -393,7 +475,7 @@ export default function Admin() {
                     {editModeProducto ? "Editar producto" : "Nuevo producto"}
                   </h5>
 
-                  <form onSubmit={onSubmitProducto}>
+                  <form onSubmit={onSubmitProducto} className="stagger-children">
                     <input type="hidden" name="id" value={formProducto.id} />
 
                     <div className="mb-3">
@@ -473,7 +555,7 @@ export default function Admin() {
                         onChange={onChangeProducto}
                       />
                       <div className="form-text">
-                        Usa una URL de imagen válida o déjalo vacío para imagen por defecto
+                        Usa una URL de imagen válida o déjalo vacío
                       </div>
                     </div>
 
@@ -515,17 +597,71 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Tabla productos */}
+            {/* Lado derecho: Toolbar + Tabla */}
             <div className="col-lg-8">
-              <div className="card card-soft">
+              <div className="card card-soft h-100">
                 <div className="card-body">
-                  <div className="d-flex flex-wrap justify-content-between align-items-center mb-3">
-                    <h5 className="mb-0">Productos actuales</h5>
+                  {/* Toolbar de filtros */}
+                  <div className="row g-2 align-items-end mb-3">
+                    <div className="col-12 col-md-4">
+                      <label className="form-label">Buscar</label>
+                      <input
+                        className="form-control"
+                        placeholder="Nombre, categoría o ID…"
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label">Categoría</label>
+                      <select
+                        className="form-select"
+                        value={filterCat}
+                        onChange={(e) => setFilterCat(e.target.value)}
+                      >
+                        <option value="">Todas</option>
+                        {categorias.map(c => (
+                          <option key={c.id_categoria} value={c.id_categoria}>
+                            {c.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label">Ordenar por</label>
+                      <select
+                        className="form-select"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                      >
+                        <option value="nombre-asc">Nombre (A–Z)</option>
+                        <option value="nombre-desc">Nombre (Z–A)</option>
+                        <option value="precio-asc">Precio (menor)</option>
+                        <option value="precio-desc">Precio (mayor)</option>
+                        <option value="stock-asc">Stock (menor)</option>
+                        <option value="stock-desc">Stock (mayor)</option>
+                      </select>
+                    </div>
+                    <div className="col-12 col-md-2 d-flex gap-2">
+                      <div className="form-check mt-auto">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="onlyToppings"
+                          checked={onlyToppings}
+                          onChange={(e) => setOnlyToppings(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="onlyToppings">
+                          Solo toppings
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="table-responsive">
+                  {/* Tabla */}
+                  <div className="table-responsive" style={{ maxHeight: 520 }}>
                     <table className="table align-middle">
-                      <thead>
+                      <thead style={{ position: "sticky", top: 0, background: "var(--white)", zIndex: 1 }}>
                         <tr>
                           <th>Producto</th>
                           <th className="text-center">Categoría</th>
@@ -535,15 +671,29 @@ export default function Admin() {
                           <th className="text-end">Acciones</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {productos.length === 0 ? (
+                      <tbody className="stagger-children">
+                        {loadingProductos ? (
+                          // Skeleton simple
+                          Array.from({ length: 6 }).map((_, i) => (
+                            <tr key={`sk-${i}`}>
+                              <td colSpan={6}>
+                                <div className="placeholder-wave">
+                                  <span className="placeholder col-12" />
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        ) : productosFiltrados.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="text-center text-muted py-4">
-                              No hay productos aún.
+                            <td colSpan={6} className="text-center py-5">
+                              <div className="text-muted mb-2">No se encontraron productos</div>
+                              <button className="btn btn-outline-brand" onClick={() => { setQ(""); setFilterCat(""); setOnlyToppings(false); setSortBy("nombre-asc"); }}>
+                                Limpiar filtros
+                              </button>
                             </td>
                           </tr>
                         ) : (
-                          productos.map((p) => (
+                          productosFiltrados.map((p) => (
                             <tr key={p.id}>
                               <td>
                                 <div className="d-flex align-items-center gap-2">
@@ -559,8 +709,7 @@ export default function Admin() {
                                         border: "1px solid #ddd",
                                       }}
                                       onError={(e) => {
-                                        // Si la imagen falla, mostrar placeholder
-                                        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik0yNCAzMkwyMCAyOEgxNkwxMiAzMkwxNiAzNkgyMEwyNCAzMloiIGZpbGw9IiNENkQ2RDYiLz4KPC9zdmc+';
+                                        e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIGZpbGw9IiNGOEY5RkEiLz48cGF0aCBkPSJNMjQgMzJMMjAgMjhIMTZMMTIgMzJMMTYgMzZIMjBMMjQgMzJaIiBmaWxsPSIjRDZENkQ2Ii8+PC9zdmc+';
                                       }}
                                     />
                                   ) : (
@@ -593,14 +742,12 @@ export default function Admin() {
                                 </span>
                               </td>
                               <td className="text-center">
-                                <span className="fw-bold text-success">
-                                  {money(p.precio)}
-                                </span>
+                                <span className="price-badge">{money(p.precio)}</span>
                               </td>
                               <td className="text-center">
                                 <span className={`badge ${
-                                  p.stock > 10 ? 'bg-success' : 
-                                  p.stock > 0 ? 'bg-warning text-dark' : 'bg-danger'
+                                  Number(p.stock) > 10 ? 'bg-success' :
+                                  Number(p.stock) > 0 ? 'bg-warning text-dark' : 'bg-danger'
                                 }`}>
                                   {p.stock}
                                 </span>
@@ -633,19 +780,17 @@ export default function Admin() {
                     </table>
                   </div>
 
-                  <p className="small text-muted mt-2 mb-0">
-                    {msgTabla}
-                  </p>
+                  <p className="small text-muted mt-2 mb-0">{msgTabla}</p>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Contenido de Categorías */}
+        {/* CONTENIDO: CATEGORÍAS */}
         {activeTab === "categorias" && (
-          <div className="row g-4">
-            {/* Formulario Crear/Editar Categoría */}
+          <div className="row g-4 fade-in">
+            {/* Formulario */}
             <div className="col-lg-4">
               <div className="card card-soft h-100">
                 <div className="card-body">
@@ -653,7 +798,7 @@ export default function Admin() {
                     {editModeCategoria ? "Editar categoría" : "Nueva categoría"}
                   </h5>
 
-                  <form onSubmit={onSubmitCategoria}>
+                  <form onSubmit={onSubmitCategoria} className="stagger-children">
                     <input type="hidden" name="id" value={formCategoria.id} />
 
                     <div className="mb-3">
@@ -706,7 +851,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Lista de categorías */}
+            {/* Lista */}
             <div className="col-lg-8">
               <div className="card card-soft">
                 <div className="card-body">
@@ -725,8 +870,18 @@ export default function Admin() {
                           <th className="text-end">Acciones</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {categorias.length === 0 ? (
+                      <tbody className="stagger-children">
+                        {loadingCategorias ? (
+                          Array.from({ length: 4 }).map((_, i) => (
+                            <tr key={`skc-${i}`}>
+                              <td colSpan={4}>
+                                <div className="placeholder-wave">
+                                  <span className="placeholder col-12" />
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        ) : categorias.length === 0 ? (
                           <tr>
                             <td colSpan={4} className="text-center text-muted py-4">
                               No hay categorías creadas.
@@ -744,8 +899,8 @@ export default function Admin() {
                                 </div>
                               </td>
                               <td className="text-center">
-                                <span className="badge bg-primary">
-                                  {productos.filter(p => p.id_categoria === cat.id_categoria).length}
+                                <span className="badge bg-info">
+                                  {productos.filter(p => String(p.id_categoria) === String(cat.id_categoria)).length}
                                 </span>
                               </td>
                               <td className="text-end">
@@ -782,13 +937,28 @@ export default function Admin() {
         )}
       </main>
 
-      <footer className="py-4 border-top">
-        <div className="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-          <Link to="/">&copy; NixGelato</Link>
-          <p className="mb-0">Desarrollado por Elvis Montoya y Juan Hernandez</p>
-          <div className="d-flex gap-4">
-            <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a>
-            <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>
+      {/* FOOTER */}
+      <footer className="py-4 border-top mt-5">
+        <div className="container">
+          <div className="row align-items-center">
+            <div className="col-md-4 text-center text-md-start mb-2 mb-md-0">
+              <Link to="/" className="text-decoration-none fw-bold text-gradient">
+                &copy; 2024 NixGelato
+              </Link>
+            </div>
+            <div className="col-md-4 text-center mb-2 mb-md-0">
+              <p className="mb-0 text-muted">Desarrollado por Elvis Montoya y Juan Hernandez</p>
+            </div>
+            <div className="col-md-4 text-center text-md-end">
+              <div className="d-flex justify-content-center justify-content-md-end gap-4">
+                <a href="https://www.instagram.com/" target="_blank" rel="noreferrer" className="text-decoration-none text-muted hover-lift">
+                  Instagram
+                </a>
+                <a href="https://www.facebook.com/" target="_blank" rel="noreferrer" className="text-decoration-none text-muted hover-lift">
+                  Facebook
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </footer>

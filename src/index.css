@@ -190,6 +190,24 @@ body{
   width: 100%;
 }
 
+/* Tamaño extra pequeño para botones del navbar */
+.btn-xs{
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  border-radius: 0.6rem;
+}
+
+/* Ajuste de altura/espaciado en el navbar */
+.navbar .btn-outline-brand.btn-xs{
+  padding: 0.35rem 0.7rem;
+}
+
+.navbar .container .gap-2{
+  gap: 0.4rem !important; /* un poquito menos separación */
+}
+
+
 /* ===========================
    Tarjetas premium
    =========================== */

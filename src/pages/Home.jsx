@@ -59,14 +59,28 @@ export default function Home() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="py-4 border-top">
-        <div className="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-          <Link to="/">&copy; NixGelato</Link>
-          <p className="mb-0">Desarrollado por Elvis Montoya y Juan Hernandez</p>
-          <div className="d-flex gap-4">
-            <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a>
-            <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>
+      {/* FOOTER */}
+      <footer className="py-4 border-top mt-5">
+        <div className="container">
+          <div className="row align-items-center">
+            <div className="col-md-4 text-center text-md-start mb-2 mb-md-0">
+              <Link to="/" className="text-decoration-none fw-bold text-gradient">
+                &copy; 2024 NixGelato
+              </Link>
+            </div>
+            <div className="col-md-4 text-center mb-2 mb-md-0">
+              <p className="mb-0 text-muted">Desarrollado por Elvis Montoya y Juan Hernandez</p>
+            </div>
+            <div className="col-md-4 text-center text-md-end">
+              <div className="d-flex justify-content-center justify-content-md-end gap-4">
+                <a href="https://www.instagram.com/" target="_blank" rel="noreferrer" className="text-decoration-none text-muted hover-lift">
+                  Instagram
+                </a>
+                <a href="https://www.facebook.com/" target="_blank" rel="noreferrer" className="text-decoration-none text-muted hover-lift">
+                  Facebook
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </footer>
