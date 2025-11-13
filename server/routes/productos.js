@@ -202,14 +202,34 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
 })
 
 /* ===========================================================
-   DELETE /api/productos/:id (borrado definitivo con verificación)
+   DELETE /api/productos/:id (borrado definitivo SI no tiene facturas)
    =========================================================== */
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
   const { id } = req.params
   console.log('DELETE /api/productos/:id -> id recibido =', id, 'tipo:', typeof id)
 
   try {
-    // 1) Verificar que exista el producto (para mensaje más claro)
+    // 0) Verificar si el producto tiene facturas asociadas
+    const { count: facturasCount, error: facturasErr } = await supabaseAdmin
+      .from('productos_facturas')
+      .select('id_detalle', { count: 'exact', head: true })
+      .eq('id_producto', id)
+
+    if (facturasErr) {
+      console.error('Error contando facturas del producto:', facturasErr)
+      return res.status(500).json({ message: 'Error verificando facturas asociadas al producto' })
+    }
+
+    if ((facturasCount ?? 0) > 0) {
+      // 💡 Aquí puedes decidir: solo error, o hacer soft delete
+      return res.status(400).json({
+        message:
+          'No se puede eliminar el producto porque ya fue usado en facturas. ' +
+          'Solo se pueden eliminar productos que no tengan ventas registradas.'
+      })
+    }
+
+    // 1) Verificar que exista el producto
     const { data: producto, error: errorProducto } = await supabaseAdmin
       .from('productos')
       .select('id_producto, nombre_producto')
@@ -222,7 +242,7 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Producto no encontrado' })
     }
 
-    // 2) BORRADO REAL + devolver lo que se borró
+    // 2) BORRADO REAL + devolver lo borrado
     const { data: deleted, error: errorDelete } = await supabaseAdmin
       .from('productos')
       .delete()
@@ -236,7 +256,6 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
       return res.status(500).json({ message: 'No se pudo eliminar el producto' })
     }
 
-    // Si no borró nada (por alguna razón rara)
     if (!deleted || deleted.length === 0) {
       return res.status(404).json({ message: 'Producto no encontrado al eliminar' })
     }
@@ -265,6 +284,5 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
     return res.status(500).json({ message: 'Error interno del servidor' })
   }
 })
-
 
 export default router
