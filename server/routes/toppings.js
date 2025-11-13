@@ -10,9 +10,9 @@ router.get("/", verifyToken, async (_req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from("toppings")
-      .select("*")
+      .select("id_topping, nombre_topping, precio, activo")
       .eq("activo", true)
-      .order("nombre", { ascending: true })
+      .order("nombre_topping", { ascending: true }) // ✅ nombre correcto
 
     if (error) {
       console.error("Error consultando toppings:", error)

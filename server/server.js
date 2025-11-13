@@ -2,13 +2,11 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 
-
 import authRouter from './routes/auth.js'
 import productosRouter from './routes/productos.js'
 import facturasRouter from './routes/facturas.js'
 import auditoriaRouter from './routes/auditoria.js'
 import empleadosRouter from './routes/empleados.js'
-import tamanosRouter from './routes/tamanos.js'
 import toppingsRouter from './routes/toppings.js'
 import categoriasRouter from './routes/categorias.js'
 import inventarioRouter from './routes/inventario.js'
@@ -31,7 +29,6 @@ app.use('/api/productos', productosRouter)
 app.use('/api/facturas', facturasRouter)
 app.use('/api/auditoria', auditoriaRouter)
 app.use('/api/empleados', empleadosRouter)
-app.use('/api/tamanos', tamanosRouter)
 app.use('/api/toppings', toppingsRouter)
 app.use('/api/categorias', categoriasRouter)
 app.use('/api/inventario', inventarioRouter)

@@ -6,6 +6,17 @@ const money = (n) =>
 
 const getToken = () => localStorage.getItem("token") || "";
 
+// Helpers para soportar distintos nombres de campos según el backend
+const getProductoId = (p) => p.id ?? p.id_producto;
+const getProductoNombre = (p) => p.nombre ?? p.nombre_producto;
+const getProductoPrecio = (p) => p.precio ?? p.precio_venta_unitario ?? 0;
+const getProductoStock = (p) => p.stock ?? p.stock_actual ?? 0;
+const getProductoPermiteToppings = (p) => p.permiteToppings ?? p.permite_toppings ?? false;
+
+const getToppingNombre = (t) => t.nombre ?? t.nombre_topping;
+const getToppingPrecioExtra = (t) =>
+  t.precio_adicional ?? t.precio ?? 0;
+
 export default function Pedido() {
   const navigate = useNavigate();
 
@@ -13,7 +24,6 @@ export default function Pedido() {
   // Estados principales
   // =========================
   const [categorias, setCategorias] = useState([]);
-  const [tamanos, setTamanos] = useState([]);
   const [toppings, setToppings] = useState([]);
   const [pedido, setPedido] = useState([]);
   const [descuento, setDescuento] = useState(0);
@@ -24,7 +34,6 @@ export default function Pedido() {
 
   // Flujo
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
-  const [tamanoSeleccionado, setTamanoSeleccionado] = useState(null);
   const [toppingsSeleccionados, setToppingsSeleccionados] = useState([]);
   const [cargando, setCargando] = useState(true);
 
@@ -42,11 +51,8 @@ export default function Pedido() {
   async function cargarDatos() {
     setCargando(true);
     try {
-      const [resProductos, resTamanos, resToppings] = await Promise.all([
+      const [resProductos, resToppings] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL}/api/productos`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        }),
-        fetch(`${import.meta.env.VITE_API_URL}/api/tamanos`, {
           headers: { Authorization: `Bearer ${getToken()}` },
         }),
         fetch(`${import.meta.env.VITE_API_URL}/api/toppings`, {
@@ -54,16 +60,14 @@ export default function Pedido() {
         }),
       ]);
 
-      if (!resProductos.ok || !resTamanos.ok || !resToppings.ok) {
+      if (!resProductos.ok || !resToppings.ok) {
         throw new Error("Error cargando datos");
       }
 
       const dataProductos = await resProductos.json();
-      const dataTamanos = await resTamanos.json();
       const dataToppings = await resToppings.json();
 
       setCategorias(Array.isArray(dataProductos) ? dataProductos : []);
-      setTamanos(Array.isArray(dataTamanos) ? dataTamanos : []);
       setToppings(Array.isArray(dataToppings) ? dataToppings : []);
     } catch (error) {
       console.error("Error cargando datos:", error);
@@ -91,17 +95,13 @@ export default function Pedido() {
   // Manejo de selección
   // =========================
   function seleccionarProducto(producto) {
-    if (producto.stock <= 0) {
+    const stock = getProductoStock(producto);
+    if (stock <= 0) {
       alert("Este producto no tiene stock disponible");
       return;
     }
     setProductoSeleccionado(producto);
-    setTamanoSeleccionado(null);
     setToppingsSeleccionados([]);
-  }
-
-  function seleccionarTamano(tamano) {
-    setTamanoSeleccionado(tamano);
   }
 
   function toggleTopping(topping) {
@@ -112,22 +112,28 @@ export default function Pedido() {
   }
 
   const precioFinal = useMemo(() => {
-    if (!productoSeleccionado || !tamanoSeleccionado) return 0;
-    const base = productoSeleccionado.precio * tamanoSeleccionado.multiplicador;
-    const extra = toppingsSeleccionados.reduce((s, t) => s + t.precio_adicional, 0);
+    if (!productoSeleccionado) return 0;
+    const base = Number(getProductoPrecio(productoSeleccionado));
+    const extra = toppingsSeleccionados.reduce(
+      (s, t) => s + Number(getToppingPrecioExtra(t)),
+      0
+    );
     return Math.round(base + extra);
-  }, [productoSeleccionado, tamanoSeleccionado, toppingsSeleccionados]);
+  }, [productoSeleccionado, toppingsSeleccionados]);
 
   function agregarAlPedido() {
-    if (!productoSeleccionado || !tamanoSeleccionado) {
-      alert("Selecciona un producto y tamaño primero");
+    if (!productoSeleccionado) {
+      alert("Selecciona un producto primero");
       return;
     }
 
+    const prodId = getProductoId(productoSeleccionado);
+    const prodNombre = getProductoNombre(productoSeleccionado);
+
     const itemPedido = {
-      id: `${productoSeleccionado.id}-${tamanoSeleccionado.id_tamano}-${Date.now()}`,
+      id: `${prodId}-${Date.now()}`,
       producto: productoSeleccionado,
-      tamano: tamanoSeleccionado,
+      tamano: "Único", // tamaño lógico, ya no hay tabla de tamaños
       toppings: [...toppingsSeleccionados],
       cantidad: 1,
       precioUnitario: precioFinal,
@@ -136,12 +142,11 @@ export default function Pedido() {
 
     setPedido((prev) => [...prev, itemPedido]);
     resetSeleccion();
-    alert(`✅ ${itemPedido.producto.nombre} (${itemPedido.tamano.nombre}) agregado al pedido`);
+    alert(`✅ ${prodNombre} agregado al pedido`);
   }
 
   function resetSeleccion() {
     setProductoSeleccionado(null);
-    setTamanoSeleccionado(null);
     setToppingsSeleccionados([]);
   }
 
@@ -195,10 +200,10 @@ export default function Pedido() {
       total,
       metodo_pago: metodoPago,
       productos: pedido.map((item) => ({
-        id: item.producto.id,
+        id: getProductoId(item.producto),
         cantidad: item.cantidad,
         precio: item.precioUnitario,
-        tamano: item.tamano.nombre,
+        tamano: item.tamano, // ahora es un string "Único"
         toppings: item.toppings.map((t) => t.id_topping),
       })),
     };
@@ -263,7 +268,9 @@ export default function Pedido() {
             🍨 NixGelato
           </Link>
           <div className="d-flex gap-2">
-            <Link className="btn btn-sm btn-outline-brand" to="/admin">Admin</Link>
+            <Link className="btn btn-sm btn-outline-brand" to="/admin">
+              Admin
+            </Link>
             <button
               className="btn btn-sm btn-outline-secondary"
               onClick={() => navigate("/login")}
@@ -275,7 +282,6 @@ export default function Pedido() {
       </nav>
 
       <main className="container my-4">
-        {/* Hero */}
         <div className="row g-4">
           {/* Constructor */}
           <div className="col-lg-8">
@@ -283,10 +289,10 @@ export default function Pedido() {
               <div className="card-body">
                 <div className="d-flex justify-content-between align-items-center">
                   <h5 className="mb-1">Armar pedido</h5>
-                  <span className="badge bg-primary">Flujo 3 pasos</span>
+                  <span className="badge bg-primary">Flujo 2 pasos</span>
                 </div>
                 <p className="small text-muted mb-3">
-                  1. Producto → 2. Tamaño → 3. Toppings (si aplica)
+                  1. Producto → 2. Toppings (si aplica)
                 </p>
 
                 {/* Paso 1: Producto por Categoría */}
@@ -299,71 +305,84 @@ export default function Pedido() {
                       </div>
                     ) : (
                       categorias.map((categoria) => (
-                        <div key={categoria.id} className="mb-4">
+                        <div key={categoria.id ?? categoria.id_categoria} className="mb-4">
                           <div className="d-flex align-items-center justify-content-between mb-2">
-                            <h6 className="text-primary mb-0">{categoria.nombre}</h6>
+                            <h6 className="text-primary mb-0">
+                              {categoria.nombre}
+                            </h6>
                             <span className="badge bg-light text-dark">
                               {categoria.productos?.length || 0} ítems
                             </span>
                           </div>
                           <div className="row g-3">
-                            {categoria.productos.map((producto) => (
-                              <div className="col-6 col-md-4 col-xl-3" key={producto.id}>
-                                <div
-                                  className={`card h-100 ${producto.stock <= 0 ? "opacity-50" : "hover-lift"}`}
-                                  style={{
-                                    cursor: producto.stock > 0 ? "pointer" : "not-allowed",
-                                    transition: "all 0.3s ease",
-                                  }}
-                                  onClick={() => seleccionarProducto(producto)}
-                                >
-                                  <div style={{ position: "relative" }}>
-                                    {producto.stock <= 0 && (
-                                      <span
-                                        className="badge bg-danger"
-                                        style={{ position: "absolute", top: 8, left: 8 }}
-                                      >
-                                        Sin stock
-                                      </span>
-                                    )}
-                                    <img
-                                      src={producto.img || "/placeholder-image.jpg"}
-                                      alt={producto.nombre}
-                                      className="card-img-top"
-                                      style={{
-                                        objectFit: "cover",
-                                        height: 120,
-                                        backgroundColor: "#f8f9fa",
-                                      }}
-                                      onError={(e) => {
-                                        e.currentTarget.src =
-                                          "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjExMCIgdmlld0JveD0iMCAwIDIwMCAxMTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTEwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik04MCA1NUw3MCA0NUg2MEw1MCA1NUw2MCA2NUg3MEw4MCA1NVoiIGZpbGw9IiNENkQ2RDYiLz4KPC9zdmc+";
-                                      }}
-                                    />
-                                  </div>
-                                  <div className="card-body p-2 d-flex flex-column">
-                                    <div className="fw-semibold small">{producto.nombre}</div>
-                                    <div className="small text-muted">{money(producto.precio)}</div>
-                                    <div
-                                      className={`small ${
-                                        producto.stock > 10
-                                          ? "text-success"
-                                          : producto.stock > 0
-                                          ? "text-warning"
-                                          : "text-danger"
-                                      }`}
-                                    >
-                                      Stock: {producto.stock}
+                            {categoria.productos?.map((producto) => {
+                              const prodId = getProductoId(producto);
+                              const prodNombre = getProductoNombre(producto);
+                              const precio = getProductoPrecio(producto);
+                              const stock = getProductoStock(producto);
+                              const permiteToppings = getProductoPermiteToppings(producto);
+                              return (
+                                <div className="col-6 col-md-4 col-xl-3" key={prodId}>
+                                  <div
+                                    className={`card h-100 ${
+                                      stock <= 0 ? "opacity-50" : "hover-lift"
+                                    }`}
+                                    style={{
+                                      cursor: stock > 0 ? "pointer" : "not-allowed",
+                                      transition: "all 0.3s ease",
+                                    }}
+                                    onClick={() => seleccionarProducto(producto)}
+                                  >
+                                    <div style={{ position: "relative" }}>
+                                      {stock <= 0 && (
+                                        <span
+                                          className="badge bg-danger"
+                                          style={{ position: "absolute", top: 8, left: 8 }}
+                                        >
+                                          Sin stock
+                                        </span>
+                                      )}
+                                      <img
+                                        src={producto.img || "/placeholder-image.jpg"}
+                                        alt={prodNombre}
+                                        className="card-img-top"
+                                        style={{
+                                          objectFit: "cover",
+                                          height: 120,
+                                          backgroundColor: "#f8f9fa",
+                                        }}
+                                        onError={(e) => {
+                                          e.currentTarget.src =
+                                            "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjExMCIgdmlld0JveD0iMCAwIDIwMCAxMTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTEwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik04MCA1NUw3MCA0NUg2MEw1MCA1NUw2MCA2NUg3MEw4MCA1NVoiIGZpbGw9IiNENkQ2RDYiLz4KPC9zdmc+";
+                                        }}
+                                      />
                                     </div>
-                                    {producto.permiteToppings && (
-                                      <span className="badge bg-info mt-1 small">
-                                        Permite toppings
-                                      </span>
-                                    )}
+                                    <div className="card-body p-2 d-flex flex-column">
+                                      <div className="fw-semibold small">{prodNombre}</div>
+                                      <div className="small text-muted">
+                                        {money(precio)}
+                                      </div>
+                                      <div
+                                        className={`small ${
+                                          stock > 10
+                                            ? "text-success"
+                                            : stock > 0
+                                            ? "text-warning"
+                                            : "text-danger"
+                                        }`}
+                                      >
+                                        Stock: {stock}
+                                      </div>
+                                      {permiteToppings && (
+                                        <span className="badge bg-info mt-1 small">
+                                          Permite toppings
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ))
@@ -371,155 +390,97 @@ export default function Pedido() {
                   </div>
                 )}
 
-                {/* Paso 2: Tamaño */}
-                {productoSeleccionado && !tamanoSeleccionado && (
-                  <div className="fade-in">
-                    <div className="d-flex align-items-center mb-3">
-                      <button className="btn btn-sm btn-outline-secondary me-2" onClick={resetSeleccion}>
-                        ← Volver
-                      </button>
-                      <h6 className="mb-0">
-                        2. Elige el tamaño para: <strong>{productoSeleccionado.nombre}</strong>
-                      </h6>
-                    </div>
-
-                    <div className="row g-3">
-                      {tamanos.length === 0 ? (
-                        <div className="col-12">
-                          <div className="alert alert-warning">
-                            No hay tamaños configurados. Contacta al administrador.
-                          </div>
-                        </div>
-                      ) : (
-                        tamanos.map((tamano) => (
-                          <div className="col-6 col-md-4" key={tamano.id_tamano}>
-                            <div
-                              className={`card text-center hover-lift ${
-                                tamanoSeleccionado?.id_tamano === tamano.id_tamano ? "border-primary border-2" : ""
-                              }`}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => seleccionarTamano(tamano)}
-                            >
-                              <div className="card-body">
-                                <h6 className="card-title">{tamano.nombre}</h6>
-                                <div className="text-muted small">{tamano.descripcion}</div>
-                                <div className="fw-semibold text-success mt-2">
-                                  {money(productoSeleccionado.precio * tamano.multiplicador)}
-                                </div>
-                                {tamano.multiplicador > 1 && (
-                                  <div className="small text-muted">
-                                    +{money(productoSeleccionado.precio * tamano.multiplicador - productoSeleccionado.precio)}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Paso 3: Toppings */}
-                {productoSeleccionado &&
-                  tamanoSeleccionado &&
-                  productoSeleccionado.permiteToppings && (
-                    <div className="fade-in">
-                      <div className="d-flex align-items-center mb-3">
-                        <button
-                          className="btn btn-sm btn-outline-secondary me-2"
-                          onClick={() => setTamanoSeleccionado(null)}
-                        >
-                          ← Volver
-                        </button>
-                        <h6 className="mb-0">
-                          3. Elige toppings para: <strong>{productoSeleccionado.nombre}</strong>{" "}
-                          ({tamanoSeleccionado.nombre})
-                        </h6>
-                      </div>
-
-                      <div className="row g-2 mb-3">
-                        {toppings.length === 0 ? (
-                          <div className="col-12">
-                            <div className="alert alert-info">
-                              No hay toppings disponibles. Continuar sin toppings.
-                            </div>
-                          </div>
-                        ) : (
-                          toppings.map((topping) => {
-                            const activo = !!toppingsSeleccionados.find(
-                              (t) => t.id_topping === topping.id_topping
-                            );
-                            return (
-                              <div className="col-6 col-md-4 col-lg-3" key={topping.id_topping}>
-                                <div
-                                  className={`card text-center hover-lift ${
-                                    activo ? "border-success border-2 bg-light" : ""
-                                  }`}
-                                  style={{ cursor: "pointer" }}
-                                  onClick={() => toggleTopping(topping)}
-                                >
-                                  <div className="card-body p-2">
-                                    <h6 className="card-title small mb-1">{topping.nombre}</h6>
-                                    <div className="text-success small">
-                                      +{money(topping.precio_adicional)}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-
-                      <div className="card bg-light">
-                        <div className="card-body">
-                          <div className="row align-items-center">
-                            <div className="col">
-                              <strong>Total del ítem:</strong>
-                              <span className="fs-5 ms-2 text-success">{money(precioFinal)}</span>
-                              {toppingsSeleccionados.length > 0 && (
-                                <div className="small text-muted mt-1">
-                                  <strong>Toppings:</strong>{" "}
-                                  {toppingsSeleccionados.map((t) => t.nombre).join(", ")}
-                                </div>
-                              )}
-                            </div>
-                            <div className="col-auto">
-                              <button className="btn btn-brand btn-lg" onClick={agregarAlPedido}>
-                                Agregar al pedido
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Si no permite toppings */}
-                {productoSeleccionado && tamanoSeleccionado && !productoSeleccionado.permiteToppings && (
+                {/* Paso 2: Toppings (si aplica) o confirmación directa */}
+                {productoSeleccionado && (
                   <div className="fade-in">
                     <div className="d-flex align-items-center mb-3">
                       <button
                         className="btn btn-sm btn-outline-secondary me-2"
-                        onClick={() => setTamanoSeleccionado(null)}
+                        onClick={resetSeleccion}
                       >
                         ← Volver
                       </button>
                       <h6 className="mb-0">
-                        Listo para agregar: <strong>{productoSeleccionado.nombre}</strong> ({tamanoSeleccionado.nombre})
+                        {getProductoPermiteToppings(productoSeleccionado)
+                          ? <>
+                              2. Elige toppings para:{" "}
+                              <strong>{getProductoNombre(productoSeleccionado)}</strong>
+                            </>
+                          : <>
+                              Listo para agregar:{" "}
+                              <strong>{getProductoNombre(productoSeleccionado)}</strong>
+                            </>
+                        }
                       </h6>
                     </div>
+
+                    {getProductoPermiteToppings(productoSeleccionado) && (
+                      <>
+                        <div className="row g-2 mb-3">
+                          {toppings.length === 0 ? (
+                            <div className="col-12">
+                              <div className="alert alert-info">
+                                No hay toppings disponibles. Continuar sin toppings.
+                              </div>
+                            </div>
+                          ) : (
+                            toppings.map((topping) => {
+                              const activo = !!toppingsSeleccionados.find(
+                                (t) => t.id_topping === topping.id_topping
+                              );
+                              const nombreTop = getToppingNombre(topping);
+                              const precioExtra = getToppingPrecioExtra(topping);
+                              return (
+                                <div
+                                  className="col-6 col-md-4 col-lg-3"
+                                  key={topping.id_topping}
+                                >
+                                  <div
+                                    className={`card text-center hover-lift ${
+                                      activo ? "border-success border-2 bg-light" : ""
+                                    }`}
+                                    style={{ cursor: "pointer" }}
+                                    onClick={() => toggleTopping(topping)}
+                                  >
+                                    <div className="card-body p-2">
+                                      <h6 className="card-title small mb-1">
+                                        {nombreTop}
+                                      </h6>
+                                      <div className="text-success small">
+                                        +{money(precioExtra)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </>
+                    )}
 
                     <div className="card bg-light">
                       <div className="card-body">
                         <div className="row align-items-center">
                           <div className="col">
                             <strong>Total del ítem:</strong>
-                            <span className="fs-5 ms-2 text-success">{money(precioFinal)}</span>
+                            <span className="fs-5 ms-2 text-success">
+                              {money(precioFinal)}
+                            </span>
+                            {toppingsSeleccionados.length > 0 && (
+                              <div className="small text-muted mt-1">
+                                <strong>Toppings:</strong>{" "}
+                                {toppingsSeleccionados
+                                  .map((t) => getToppingNombre(t))
+                                  .join(", ")}
+                              </div>
+                            )}
                           </div>
                           <div className="col-auto">
-                            <button className="btn btn-brand btn-lg" onClick={agregarAlPedido}>
+                            <button
+                              className="btn btn-brand btn-lg"
+                              onClick={agregarAlPedido}
+                            >
                               Agregar al pedido
                             </button>
                           </div>
@@ -540,7 +501,10 @@ export default function Pedido() {
                     Vaciar pedido
                   </button>
                   {productoSeleccionado && (
-                    <button className="btn btn-outline-secondary btn-sm" onClick={resetSeleccion}>
+                    <button
+                      className="btn btn-outline-secondary btn-sm"
+                      onClick={resetSeleccion}
+                    >
                       Cancelar selección
                     </button>
                   )}
@@ -562,7 +526,14 @@ export default function Pedido() {
 
                 <div className="table-responsive" style={{ maxHeight: 340 }}>
                   <table className="table align-middle">
-                    <thead style={{ position: "sticky", top: 0, background: "var(--white)", zIndex: 1 }}>
+                    <thead
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        background: "var(--white)",
+                        zIndex: 1,
+                      }}
+                    >
                       <tr>
                         <th>Producto</th>
                         <th className="text-center">Cant</th>
@@ -583,13 +554,18 @@ export default function Pedido() {
                         <tr key={item.id}>
                           <td>
                             <div>
-                              <div className="fw-semibold small">{item.producto.nombre}</div>
+                              <div className="fw-semibold small">
+                                {getProductoNombre(item.producto)}
+                              </div>
                               <div className="small text-muted">
-                                {item.tamano.nombre}
+                                {item.tamano}
                                 {item.toppings.length > 0 && (
                                   <div className="mt-1">
                                     <small className="text-info">
-                                      + {item.toppings.map((t) => t.nombre).join(", ")}
+                                      +{" "}
+                                      {item.toppings
+                                        .map((t) => getToppingNombre(t))
+                                        .join(", ")}
                                     </small>
                                   </div>
                                 )}
