@@ -202,35 +202,46 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
 })
 
 /* ===========================================================
-   DELETE /api/productos/:id (soft delete)
+   DELETE /api/productos/:id (borrado definitivo con verificación)
    =========================================================== */
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
   const { id } = req.params
+  console.log('DELETE /api/productos/:id -> id recibido =', id, 'tipo:', typeof id)
 
   try {
+    // 1) Verificar que exista el producto (para mensaje más claro)
     const { data: producto, error: errorProducto } = await supabaseAdmin
       .from('productos')
       .select('id_producto, nombre_producto')
       .eq('id_producto', id)
       .single()
+
+    console.log('Producto encontrado antes de borrar:', producto, 'error:', errorProducto)
+
     if (errorProducto || !producto) {
       return res.status(404).json({ message: 'Producto no encontrado' })
     }
 
-    const { error } = await supabaseAdmin
+    // 2) BORRADO REAL + devolver lo que se borró
+    const { data: deleted, error: errorDelete } = await supabaseAdmin
       .from('productos')
-      .update({
-        activo: false,
-        fecha_actualizacion: new Date().toISOString()
-      })
+      .delete()
       .eq('id_producto', id)
+      .select('id_producto, nombre_producto')
 
-    if (error) {
-      console.error('Error en soft delete:', error)
-      return res.status(500).json({ message: 'No se pudo desactivar el producto' })
+    console.log('Resultado DELETE supabase:', { deleted, errorDelete })
+
+    if (errorDelete) {
+      console.error('Error eliminando producto:', errorDelete)
+      return res.status(500).json({ message: 'No se pudo eliminar el producto' })
     }
 
-    // Auditoría (no bloqueante)
+    // Si no borró nada (por alguna razón rara)
+    if (!deleted || deleted.length === 0) {
+      return res.status(404).json({ message: 'Producto no encontrado al eliminar' })
+    }
+
+    // 3) Auditoría (no bloqueante)
     try {
       await supabaseAdmin
         .from('auditoria')
@@ -239,118 +250,21 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
           accion: 'DELETE',
           tabla_afectada: 'productos',
           id_registro_afectado: id,
-          descripcion: `Producto desactivado: ${producto.nombre_producto}`
+          descripcion: `Producto eliminado definitivamente: ${producto.nombre_producto}`
         }])
     } catch (auditError) {
       console.error('Error registrando auditoría:', auditError)
     }
 
-    res.json({ message: 'Producto desactivado correctamente', producto: producto.nombre_producto })
+    return res.json({
+      message: 'Producto eliminado correctamente',
+      producto: producto.nombre_producto
+    })
   } catch (err) {
-    console.error('Error en DELETE /api/productos:', err)
-    res.status(500).json({ message: 'Error interno del servidor' })
+    console.error('Error en DELETE /api/productos/:id:', err)
+    return res.status(500).json({ message: 'Error interno del servidor' })
   }
 })
 
-/* ===========================================================
-   GET /api/productos/inactivos
-   =========================================================== */
-router.get('/inactivos', verifyToken, requireAdmin, async (_req, res) => {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('productos')
-      .select(`
-        id_producto,
-        nombre_producto,
-        precio_venta_unitario,
-        img,
-        permite_toppings,
-        activo,
-        fecha_creacion,
-        fecha_actualizacion,
-        categorias:categorias!productos_id_categoria_fkey(
-          id_categoria,
-          nombre
-        ),
-        inventario:inventario!inventario_id_producto_fkey(
-          stock_actual
-        )
-      `)
-      .eq('activo', false)
-      .order('fecha_actualizacion', { ascending: false })
-
-    if (error) {
-      console.error('Error consultando inactivos:', error)
-      return res.status(500).json({ message: 'Error al obtener productos inactivos' })
-    }
-
-    const adaptado = (data ?? []).map(p => ({
-      id: p.id_producto,
-      nombre: p.nombre_producto,
-      precio: Number(p.precio_venta_unitario),
-      img: p.img || '',
-      permiteToppings: !!p.permite_toppings,
-      stock: p.inventario?.stock_actual ?? 0,
-      categoria: p.categorias?.nombre || 'Sin categoría',
-      fecha_desactivacion: p.fecha_actualizacion
-    }))
-
-    res.json(adaptado)
-  } catch (err) {
-    console.error('Error en GET /api/productos/inactivos:', err)
-    res.status(500).json({ message: 'Error interno del servidor' })
-  }
-})
-
-/* ===========================================================
-   PUT /api/productos/:id/reactivar
-   =========================================================== */
-router.put('/:id/reactivar', verifyToken, requireAdmin, async (req, res) => {
-  const { id } = req.params
-
-  try {
-    const { data: producto, error: errorProducto } = await supabaseAdmin
-      .from('productos')
-      .select('id_producto, nombre_producto')
-      .eq('id_producto', id)
-      .single()
-    if (errorProducto || !producto) {
-      return res.status(404).json({ message: 'Producto no encontrado' })
-    }
-
-    const { error } = await supabaseAdmin
-      .from('productos')
-      .update({
-        activo: true,
-        fecha_actualizacion: new Date().toISOString()
-      })
-      .eq('id_producto', id)
-
-    if (error) {
-      console.error('Error reactivando producto:', error)
-      return res.status(500).json({ message: 'No se pudo reactivar el producto' })
-    }
-
-    // Auditoría (no bloqueante)
-    try {
-      await supabaseAdmin
-        .from('auditoria')
-        .insert([{
-          id_empleado: req.user.id_empleado,
-          accion: 'UPDATE',
-          tabla_afectada: 'productos',
-          id_registro_afectado: id,
-          descripcion: `Producto reactivado: ${producto.nombre_producto}`
-        }])
-    } catch (auditError) {
-      console.error('Error registrando auditoría:', auditError)
-    }
-
-    res.json({ message: 'Producto reactivado correctamente', producto: producto.nombre_producto })
-  } catch (err) {
-    console.error('Error en PUT /api/productos/:id/reactivar:', err)
-    res.status(500).json({ message: 'Error interno del servidor' })
-  }
-})
 
 export default router
